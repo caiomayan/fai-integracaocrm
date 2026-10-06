@@ -1,0 +1,35 @@
+meta {
+  name: 06 Notas (nativa)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=gradereport_user_get_grade_items
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "userid": {{userid}}
+  }
+}
+
+tests {
+  test("sem exceção do Moodle", function () {
+    expect(res.status).to.equal(200);
+    expect((res.body || {}).exception).to.equal(undefined);
+  });
+}
+
+docs {
+  Função nativa do relatório do usuário: itens de nota do curso (questionário e Total do curso).
+  O `userid` é opcional: remova-o do corpo para listar todos os participantes.
+  O Total do curso (`itemtype: course`) corresponde à `nota` do 04.
+}

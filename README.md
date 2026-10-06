@@ -40,5 +40,24 @@ docker compose exec -u www-data moodle php admin/cli/purge_caches.php
 - **Notas → Relatório de notas**: mostra o questionário e o **Total do curso**.
 - **Administração → Servidor → Web services**: aqui será configurado o serviço "CRM Vestibular FAI" (fase 2). Em **API Documentation** aparecem as funções disponíveis (`core_user_create_users`, `enrol_manual_enrol_users`…).
 
+## Integração CRM (fase 2)
+Ao subir, o `setup.php` configura web services, o usuário técnico `ws_crm`, o serviço "CRM Vestibular FAI", o curso **Vestibular 2027.1** e a prova de teste. Saídas em `output/`:
+- `output/token.txt`: token do serviço (use no Bruno e no CRM);
+- `output/ids.json`: `courseid`, `quizid`, `cmid`, `serviceid`.
+
+**API JSON (formato principal):** `POST http://localhost:8080/local/faicrm/rest_json.php?wsfunction=<função>` com `Authorization: Bearer <token>` e `Content-Type: application/json`. O corpo é o JSON do cliente (ex.: `{"users":[{"username":"…","password":"…","firstname":"…","lastname":"…","email":"…","auth":"manual","idnumber":"…"}]}` ou `{"enrolments":[{"userid":10,"courseid":2}]}`; `roleid` é opcional e o padrão é o papel `student`). O adaptador (plugin `local_faicrm`) delega ao servidor REST nativo; erros próprios: `invalidjson` (400), `missingwsfunction` (400), `methodnotallowed` (405). Matricular e desmatricular respondem **204** sem corpo. O endpoint nativo `/webservice/rest/server.php` (form-urlencoded) continua disponível como alternativa.
+
+**Bruno (simula o CRM, com corpo JSON):** abra a pasta `bruno/` em *Open Collection*, escolha o ambiente `local` e preencha a variável `token` com o conteúdo de `output/token.txt` (e `courseid` com o de `ids.json`, se for diferente de 2).
+O script do 02/01 grava `userid` no ambiente (o Bruno salva em `environments/local.bru`); não versione esse valor.
+Cada candidato precisa de `username` **e** `email` únicos — para um novo teste, troque os dois.
+
+**Ordem de teste:** `01` localizar → `02` criar → `03` matricular (sem `roleid`; `03b` envia o `roleid`) → `04` resultados (`nota: null`, `concluido: false`). Depois simule a prova (4 acertos de 5 = nota 800) e rode o `04` de novo:
+```powershell
+docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=12345678900 --acertos=4
+```
+A conclusão depende do cron (roda a cada minuto). `05`/`06` são as funções nativas de conclusão e notas, `07` desmatricula (03, 03b e 07 devolvem 204), `98` mostra o erro de JSON inválido e `99` o de token inválido.
+
+Guia completo (fluxo, parâmetros, erros, implantação na FAI): [docs/integracao-crm.md](docs/integracao-crm.md).
+
 ## Próxima fase
-Configurar o serviço web, o usuário técnico e o token, criar a função de resultados (nota + concluído) e montar a coleção do Bruno que simula o CRM.
+Implantar o plugin `local_faicrm` e o serviço no Moodle da FAI (checklist em [docs/integracao-crm.md](docs/integracao-crm.md)), validar a política de senha e o `courseid` reais, e integrar o backend do CRM usando o token.

@@ -23,6 +23,7 @@ global \$CFG;
 \$CFG->dataroot  = '${DATAROOT}';
 \$CFG->admin     = 'admin';
 \$CFG->directorypermissions = 02777;
+\$CFG->noemailever = true; // dev: não há servidor de e-mail nos containers
 require_once(__DIR__ . '/lib/setup.php');
 PHP
 chown www-data:www-data "$MOODLE_DIR/config.php"
@@ -68,6 +69,10 @@ case "$1" in
         asweb "php admin/cli/cfg.php --name=noreplyaddress --set=noreply@localhost.local"
         echo ">> Instalação concluída."
     fi
+    echo ">> Configurando integração CRM (setup.php)..."
+    mkdir -p /opt/fai/output
+    chown www-data:www-data /opt/fai/output 2>/dev/null || chmod 0777 /opt/fai/output || true
+    asweb "php /opt/fai/setup.php" || echo "!! setup.php falhou (veja a mensagem acima); o Moodle seguirá no ar sem a configuração da integração."
     asweb "touch $DATAROOT/.installed"
     echo ">> Moodle disponível em ${MOODLE_URL} (usuário: ${MOODLE_ADMIN_USER})"
     exec apache2-foreground

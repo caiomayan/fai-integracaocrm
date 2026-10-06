@@ -1,0 +1,44 @@
+meta {
+  name: 01 Localizar candidato
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_user_get_users_by_field
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "field": "username",
+    "values": ["{{username}}"]
+  }
+}
+
+
+script:post-response {
+  // Lista vazia = candidato não existe (siga para o 02). Se existir, guarda o id.
+  if (Array.isArray(res.body) && res.body.length > 0) {
+    bru.setEnvVar("userid", String(res.body[0].id));
+  }
+}
+
+tests {
+  test("sem exceção do Moodle", function () {
+    expect(res.status).to.equal(200);
+    expect((res.body || {}).exception).to.equal(undefined);
+  });
+}
+
+docs {
+  Localiza o candidato pelo `username` (CPF) com a função nativa `core_user_get_users_by_field`.
+  
+  - Resposta `[]`: não existe, execute o 02 (Criar candidato).
+  - Resposta com um item: já existe; o `id` é salvo em `userid` e o 02 não é necessário.
+}

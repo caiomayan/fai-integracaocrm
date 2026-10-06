@@ -1,0 +1,40 @@
+meta {
+  name: 98 JSON inválido
+  type: http
+  seq: 98
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: text
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:text {
+  {"courseid": 2,
+}
+
+assert {
+  res.status: eq 400
+  res.body.errorcode: eq invalidjson
+}
+
+tests {
+  test("adaptador responde invalidjson", function () {
+    expect(res.body.exception).to.be.a("string");
+    expect(res.body.errorcode).to.equal("invalidjson");
+  });
+}
+
+docs {
+  Corpo JSON malformado enviado ao adaptador. Resposta: HTTP 400 com
+  `{"exception":"moodle_exception","errorcode":"invalidjson","message":"Corpo inválido: envie um objeto JSON."}`.
+}

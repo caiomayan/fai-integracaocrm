@@ -1,0 +1,38 @@
+meta {
+  name: 99 Token inválido
+  type: http
+  seq: 99
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: invalido
+}
+
+body:json {
+  {
+    "courseid": {{courseid}}
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.errorcode: eq invalidtoken
+}
+
+tests {
+  test("Moodle responde com exceção invalidtoken", function () {
+    expect(res.body.exception).to.be.a("string");
+    expect(res.body.errorcode).to.equal("invalidtoken");
+  });
+}
+
+docs {
+  Mesma chamada do 04 com token inválido (header Bearer). O Moodle responde HTTP 200 com
+  `{"exception":"moodle_exception","errorcode":"invalidtoken","message":"Token inválido - token não encontrado"}`.
+}

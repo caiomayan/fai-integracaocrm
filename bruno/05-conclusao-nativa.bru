@@ -1,0 +1,35 @@
+meta {
+  name: 05 Conclusão (nativa)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_completion_get_course_completion_status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "userid": {{userid}}
+  }
+}
+
+tests {
+  test("sem exceção do Moodle", function () {
+    expect(res.status).to.equal(200);
+    expect((res.body || {}).exception).to.equal(undefined);
+  });
+}
+
+docs {
+  Função nativa de conclusão do curso, para um único usuário por chamada. Útil para conferir o campo `concluido` do 04.
+
+  Resposta: `{"completionstatus": {"completed": true, "aggregation": 1, "completions": [...]}, "warnings": []}`.
+}

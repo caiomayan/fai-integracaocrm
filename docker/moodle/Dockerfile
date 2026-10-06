@@ -22,6 +22,11 @@ RUN rm -rf /var/www/html \
 RUN mkdir -p /opt/langpacks \
     && curl -fsSL https://download.moodle.org/download.php/direct/langpack/4.5/pt_br.zip -o /opt/langpacks/pt_br.zip
 
+# Scripts da integração CRM (setup idempotente e simulação de prova)
+COPY setup.php simular_prova.php /opt/fai/
+RUN sed -i 's/\r$//' /opt/fai/setup.php /opt/fai/simular_prova.php \
+    && mkdir -p /opt/fai/output && chown www-data:www-data /opt/fai/output
+
 COPY entrypoint.sh /usr/local/bin/moodle-entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/moodle-entrypoint && chmod +x /usr/local/bin/moodle-entrypoint
 

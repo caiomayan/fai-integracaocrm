@@ -1,3 +1,5 @@
 output/
 *.log
 .env
+bruno/collection.bru
+.maestri/

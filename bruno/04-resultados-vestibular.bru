@@ -1,0 +1,51 @@
+meta {
+  name: 04 Resultados do vestibular
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}}
+  }
+}
+
+tests {
+  test("sem exceção do Moodle", function () {
+    expect(res.status).to.equal(200);
+    expect((res.body || {}).exception).to.equal(undefined);
+  });
+  test("devolve uma lista de candidatos", function () {
+    expect(res.body).to.be.an("array");
+  });
+  test("itens têm o contrato esperado", function () {
+    res.body.forEach(function (c) {
+      ["username", "firstname", "lastname", "email", "courseid", "nota", "concluido"].forEach(function (k) {
+        expect(c).to.have.property(k);
+      });
+    });
+  });
+}
+
+docs {
+  Função própria do plugin `local_faicrm` (somente leitura): um item por candidato (estudante) do curso.
+
+  ```json
+  [{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true}]
+  ```
+
+  - `nota`: Total do curso (0 a 1000 no ambiente de teste); `null` se ainda sem nota.
+  - `concluido`: conclusão do curso (booleano).
+
+  Logo após matricular: `nota: null, concluido: false`.
+}

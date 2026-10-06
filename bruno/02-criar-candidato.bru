@@ -1,0 +1,53 @@
+meta {
+  name: 02 Criar candidato
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_user_create_users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "users": [
+      {
+        "username": "{{username}}",
+        "password": "{{password}}",
+        "firstname": "{{firstname}}",
+        "lastname": "{{lastname}}",
+        "email": "{{email}}",
+        "auth": "manual",
+        "idnumber": "{{username}}"
+      }
+    ]
+  }
+}
+
+
+script:post-response {
+  if (Array.isArray(res.body) && res.body.length > 0 && res.body[0].id) {
+    bru.setEnvVar("userid", String(res.body[0].id));
+  }
+}
+
+tests {
+  test("sem exceção do Moodle", function () {
+    expect(res.status).to.equal(200);
+    expect((res.body || {}).exception).to.equal(undefined);
+  });
+}
+
+docs {
+  Cria o candidato com `core_user_create_users`. Resposta de sucesso: `[{"id": 123, "username": "12345678900"}]`.
+  
+  O script pós-resposta salva o `id` na variável `userid`, usada no 03.
+  
+  Executar de novo com o mesmo `username` devolve erro nativo (`invalidparameter`), sem duplicar o usuário. Nesse caso este teste falha de propósito: use o 01 para localizar o candidato.
+}

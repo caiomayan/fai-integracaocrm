@@ -1,0 +1,60 @@
+name: fai-moodle
+
+x-moodle-env: &moodle-env
+  MOODLE_URL: ${MOODLE_URL}
+  MOODLE_ADMIN_USER: ${MOODLE_ADMIN_USER}
+  MOODLE_ADMIN_PASS: ${MOODLE_ADMIN_PASS}
+  MOODLE_ADMIN_EMAIL: ${MOODLE_ADMIN_EMAIL}
+  MOODLE_SITE_NAME: ${MOODLE_SITE_NAME}
+  MOODLE_LANG: ${MOODLE_LANG}
+  DB_HOST: db
+  DB_NAME: ${DB_NAME}
+  DB_USER: ${DB_USER}
+  DB_PASS: ${DB_PASS}
+
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--max_allowed_packet=64M"]
+    environment:
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    ports:
+      - "${DB_PORT}:3306"   # acesso opcional via DBeaver/HeidiSQL
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  moodle:
+    build: ./docker/moodle
+    image: fai-moodle:4.5
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *moodle-env
+    ports:
+      - "${MOODLE_PORT}:80"
+    volumes:
+      - moodledata:/var/www/moodledata
+
+  cron:
+    image: fai-moodle:4.5
+    restart: unless-stopped
+    depends_on:
+      - moodle
+    environment: *moodle-env
+    command: ["cron"]
+    volumes:
+      - moodledata:/var/www/moodledata
+
+volumes:
+  dbdata:
+  moodledata:

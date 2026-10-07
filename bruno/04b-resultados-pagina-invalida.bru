@@ -1,0 +1,39 @@
+meta {
+  name: 04b Resultados com página inválida
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "porpagina": 1000
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("porpagina acima do limite devolve 400 com mensagem em português", function () {
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal("Dados inválidos: porpagina deve estar entre 1 e 500.");
+  });
+}
+
+docs {
+  `porpagina` só aceita de 1 a 500. Fora disso a resposta é HTTP 400 com
+  `{"message":"Dados inválidos: porpagina deve estar entre 1 e 500."}`.
+  O mesmo vale para `pagina` menor que 1 (`"Dados inválidos: pagina deve ser maior ou igual a 1."`).
+}

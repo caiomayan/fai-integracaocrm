@@ -49,13 +49,18 @@ Ao subir, o `setup.php` configura web services, o usuário técnico `ws_crm`, o 
 
 **API JSON (formato principal):** `POST http://localhost:8080/local/faicrm/rest_json.php?wsfunction=<função>` com `Authorization: Bearer <token>` e `Content-Type: application/json`. O corpo é o JSON do cliente (ex.: `{"users":[{"username":"…","password":"…","firstname":"…","lastname":"…","email":"…","auth":"manual","idnumber":"…"}]}` ou `{"enrolments":[{"userid":10,"courseid":2}]}`; `roleid` é opcional e o padrão é o papel `student`). O adaptador (plugin `local_faicrm`) delega ao servidor REST nativo. Erros respondem com status HTTP coerente (400, 401, 403, 404, 405, 409, 413, 500, 503) e corpo só `{"message": "…"}` em português; o detalhe técnico fica no log do Moodle, localizável pelo header `X-Request-Id`. Matricular e desmatricular respondem **204** sem corpo. O endpoint nativo `/webservice/rest/server.php` (form-urlencoded) continua disponível como alternativa.
 
-**Bruno (simula o CRM, com corpo JSON):** abra a pasta `bruno/` em *Open Collection*, escolha o ambiente `local` e preencha a variável `token` com o conteúdo de `output/token.txt` (e `courseid` com o de `ids.json`, se for diferente de 2).
-O script do 02/01 grava `userid` no ambiente (o Bruno salva em `environments/local.bru`); não versione esse valor.
-Cada candidato precisa de `username` **e** `email` únicos — para um novo teste, troque os dois.
+**Bruno (simula o CRM, com corpo JSON):** abra a pasta `bruno/` em *Open Collection* e escolha o ambiente `local`.
 
-**Ordem de teste:** `01` localizar → `02` criar → `03` matricular (sem `roleid`; `03b` envia o `roleid`) → `04` resultados (`nota: null`, `concluido: false`). Depois simule a prova (4 acertos de 5 = nota 800) e rode o `04` de novo:
+*Token (segredo, nunca vai para o Git):* o ambiente `local` declara `token` como **segredo** (`vars:secret`), então o arquivo não guarda o valor. No app: **Environments → local → token →** cole o conteúdo de `output/token.txt` (o Bruno guarda segredos só na sua máquina). Na CLI: `npx @usebruno/cli run --env local --env-var "token=$(cat output/token.txt)"`. Se existir um `bruno/collection.bru` local (está no `.gitignore`), não coloque `token` nem `baseUrl` nele: pela precedência de variáveis do Bruno (execução > requisição > pasta > **ambiente** > coleção > global) o valor do ambiente vale mais que o da coleção, e um valor vazio no ambiente anularia o da coleção.
+
+*Candidato único a cada execução:* o script do `01` gera um candidato novo (username de 11 dígitos começando com 9, senha igual ao username, e-mail `candidato<username>@email.com`, nome "Candidato Teste") e o `02` o cria; o `userid` devolvido fica numa variável de execução usada do `03` ao `07`. Nada é gravado no ambiente. Por isso é só rodar `01` a `07` (ou a coleção toda) quantas vezes quiser, sem trocar nada. Se rodar o `02` sozinho, ele gera o candidato. Para limpar os candidatos de teste depois:
 ```powershell
-docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=12345678900 --acertos=4
+docker compose exec -u www-data moodle php -r 'define("CLI_SCRIPT",1);require("/var/www/html/config.php");require_once($CFG->dirroot."/user/lib.php");foreach($DB->get_records_select("user","deleted=0 AND firstname=? AND lastname=?",["Candidato","Teste"]) as $u){delete_user($u);}'
+```
+
+**Ordem de teste:** `01` localizar → `02` criar → `03` matricular (sem `roleid`; `03b` envia o `roleid` 5; `03c` tenta o papel 3 e recebe 403) → `04` resultados (`nota: null`, `concluido: false`). Depois simule a prova (4 acertos de 5 = nota 800) com o username que o `01` gerou (veja a aba Vars ou o corpo do `02`) e rode o `04` de novo:
+```powershell
+docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=<username gerado> --acertos=4
 ```
 A conclusão depende do cron (roda a cada minuto). `05`/`06` são as funções nativas de conclusão e notas, `07` desmatricula (03, 03b e 07 devolvem 204), `95` a `99` mostram erros: campo obrigatório (400), curso inexistente (404), candidato duplicado (409), JSON inválido (400) e token inválido (401).
 

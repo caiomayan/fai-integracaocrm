@@ -1,0 +1,37 @@
+meta {
+  name: 04d Resultados com data inválida
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "dataprovade": "07/10/2026"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("data fora do formato devolve 400 com mensagem em português", function () {
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal("Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD.");
+  });
+}
+
+docs {
+  `dataprovade` e `dataprovaate` só aceitam data `AAAA-MM-DD`. Outro formato (inclusive com hora), data inexistente (ex.: 2026-02-30) ou `dataprovade` posterior a `dataprovaate` devolvem HTTP 400 com `{"message": ...}` em português.
+}

@@ -85,11 +85,35 @@ O usuário técnico só pode atribuir o papel Estudante: outro `roleid` devolve 
 Resposta de sucesso: **HTTP 204**, sem corpo.
 
 ### 4. Resultados — `local_faicrm_get_resultados_vestibular`
-Corpo: `{"courseid": 2}`. Devolve um item por candidato (estudante) do curso, ordenado por sobrenome e nome.
+Corpo: `{"courseid": 2, "pagina": 1, "porpagina": 100}` (mais os filtros de data da prova, opcionais). Devolve os candidatos (estudantes) do curso **paginados**, ordenados por sobrenome, nome e id (ordem estável).
+
+| parâmetro | obrigatório | padrão | regra |
+|---|---|---|---|
+| `courseid` | sim | | id do curso |
+| `pagina` | não | 1 | maior ou igual a 1 |
+| `porpagina` | não | 100 | de 1 a 500 |
+| `dataprovade` | não | | só candidatos com prova a partir deste dia (`AAAA-MM-DD`, 00:00:00) |
+| `dataprovaate` | não | | só candidatos com prova até este dia (`AAAA-MM-DD`, até 23:59:59) |
+
 ```json
-[{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true}]
+{"total": 1234, "pagina": 1, "porpagina": 100, "totalpaginas": 13,
+ "candidatos": [{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true,
+                  "datamatricula":"2026-10-06T11:00:36-03:00","dataprova":"2026-10-07T09:42:53-03:00","dataconclusao":"2026-10-07T09:42:53-03:00"}]}
 ```
-Logo após a matrícula: `"nota": null, "concluido": false`.
+- `total`: candidatos do curso; `totalpaginas = ceil(total / porpagina)` (0 se não há candidatos).
+- Página além da última: `candidatos: []`, com os metadados corretos. Curso sem candidatos: `total: 0, totalpaginas: 0, candidatos: []`.
+- `pagina` ou `porpagina` fora da faixa: HTTP 400 com `{"message": "Dados inválidos: porpagina deve estar entre 1 e 500."}` (ou `pagina deve ser maior ou igual a 1`).
+- Logo após a matrícula: `"nota": null, "concluido": false`.
+
+**Filtro por data da prova.** `dataprova` é o horário em que a **última tentativa finalizada** do questionário terminou. Com `dataprovade` e/ou `dataprovaate`, só entram candidatos com `dataprova` dentro do intervalo (inclusive); quem ainda não fez a prova fica de fora, e `total` e `totalpaginas` já respeitam o filtro.
+- Formato: **somente data**, `AAAA-MM-DD`, no fuso America/Sao_Paulo. `dataprovade` vale a partir de 00:00:00 do dia e `dataprovaate` até 23:59:59 do dia (os dois dias entram). Hora no filtro não é aceita.
+- Um dia exato: `dataprovade` e `dataprovaate` iguais, por exemplo `{"courseid": 2, "dataprovade": "2026-10-07", "dataprovaate": "2026-10-07"}`.
+- Formato inválido (ex.: `07/10/2026`, `2026-02-30`, ou com hora como `2026-10-07T10:00`): HTTP 400, `{"message": "Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD."}` (o mesmo para `dataprovaate`). `dataprovade` posterior a `dataprovaate`: HTTP 400, `{"message": "Dados inválidos: dataprovade não pode ser posterior a dataprovaate."}`.
+- Texto vazio (`""`) equivale a não filtrar.
+
+**Como percorrer todas as páginas:** comece em `pagina = 1` e repita até `pagina = totalpaginas` (ou até `candidatos` vir vazio), mantendo o mesmo `porpagina`. A ordem é estável, então cada candidato aparece uma única vez. Para sincronização frequente, use `porpagina` entre 100 e 500.
+
+Campos de cada item de `candidatos`:
 
 | campo | tipo | observação |
 |---|---|---|
@@ -100,6 +124,11 @@ Logo após a matrícula: `"nota": null, "concluido": false`.
 | courseid | inteiro | |
 | nota | número ou `null` | Total do curso no gradebook, valor bruto; `null` se ainda sem nota |
 | concluido | booleano | conclusão do curso (course completion) |
+| datamatricula | texto ISO 8601 ou `null` | primeira matrícula do candidato no curso |
+| dataprova | texto ISO 8601 ou `null` | fim da última tentativa finalizada do questionário; `null` se ainda não fez a prova |
+| dataconclusao | texto ISO 8601 ou `null` | quando o curso foi concluído; `null` se não concluiu |
+
+Na **resposta**, as datas trazem dia, hora e fuso do servidor, por exemplo `2026-10-07T14:32:00-03:00`.
 
 A conclusão depende do cron do Moodle; pode levar alguns minutos após a prova.
 

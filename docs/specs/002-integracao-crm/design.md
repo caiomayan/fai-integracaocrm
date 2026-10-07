@@ -43,6 +43,28 @@ Exemplo (JSON da resposta REST):
 [{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true}]
 ```
 
+### Atualização RF-11: paginação (substitui a entrada e a saída acima)
+- Parâmetros: `courseid` (PARAM_INT, obrigatório), `pagina` (PARAM_INT, `VALUE_DEFAULT` 1), `porpagina` (PARAM_INT, `VALUE_DEFAULT` 100, máximo 500). Valores fora da faixa → `invalid_parameter_exception`; o adaptador traduz para 400 com message em PT (ex.: "Dados inválidos: porpagina deve estar entre 1 e 500.").
+- Consulta: `count_role_users` (ou SQL equivalente) para o `total`; `get_role_users(..., sort 'u.lastname, u.firstname, u.id', limitfrom = (pagina-1)*porpagina, limitnum = porpagina)` para a página.
+- Nota: `grade_get_course_grades($courseid, <ids da página>)`.
+- Conclusão: **uma** consulta em `course_completions` (`course = :c AND userid IN (...) AND timecompleted IS NOT NULL`) para a página; não instanciar `completion_completion` por candidato.
+- Retorno (`external_single_structure`):
+```json
+{"total": 1234, "pagina": 2, "porpagina": 100, "totalpaginas": 13,
+ "candidatos": [{"username":"…","firstname":"…","lastname":"…","email":"…","courseid":2,"nota":760,"concluido":true}]}
+```
+- `totalpaginas = ceil(total / porpagina)` (0 quando `total = 0`). Página além da última → `candidatos: []`.
+
+### Atualização RF-12: datas e filtro por data da prova
+- Novos campos em cada item de `candidatos` (PARAM_RAW, `NULL_ALLOWED`):
+  - `datamatricula`: menor `user_enrolments.timecreated` do usuário nas instâncias de inscrição do curso;
+  - `dataprova`: maior `quiz_attempts.timefinish` com `state = 'finished'` e `preview = 0`, em questionários do curso;
+  - `dataconclusao`: `course_completions.timecompleted`.
+- Formatação: timestamp → `DateTime` no fuso do servidor (`core_date::get_server_timezone_object()`, America/Sao_Paulo) → `format('c')`; `0`/`null` → `null`.
+- Novos parâmetros opcionais `dataprovade` e `dataprovaate` (PARAM_RAW, `VALUE_DEFAULT ''`). Parse estrito: **só** `AAAA-MM-DD` (regex + checkdate), no fuso do servidor; `de` → 00:00:00 e `ate` → 23:59:59 do dia. Valor com hora → 400 (decisão do Caio, 07/10). Inválido ou `de` > `ate` → `invalid_parameter_exception` → 400 no adaptador ("Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD." / "Dados inválidos: dataprovade não pode ser posterior a dataprovaate.").
+- Com filtro, a condição sobre a **última** tentativa finalizada (a mesma da `dataprova` devolvida) entra **no SQL** do `total` e da página: mesmo FROM/WHERE nos dois, para manter a consistência do RF-11 (`count_role_users` não aceita condição extra, então use SQL próprio com `DISTINCT u.id`).
+- As datas da página saem em lote (uma consulta por tipo de data para os ids da página), sem consulta por candidato.
+
 ## Serviço "CRM Vestibular FAI"
 `db/services.php` → `$services['CRM Vestibular FAI']`: `shortname=crm_vestibular_fai`, `enabled=1`, `restrictedusers=1`, `downloadfiles=0`, `uploadfiles=0`, funções:
 `core_user_create_users, core_user_get_users_by_field, enrol_manual_enrol_users, enrol_manual_unenrol_users, core_course_get_courses_by_field, core_enrol_get_enrolled_users, mod_quiz_get_quizzes_by_courses, mod_quiz_get_user_attempts, core_completion_get_course_completion_status, gradereport_user_get_grade_items, local_faicrm_get_resultados_vestibular`.

@@ -21,11 +21,26 @@ body:json {
   }
 }
 
+script:pre-request {
+  // Gera um candidato único (CPF fictício de 11 dígitos começando com 9) e guarda como variáveis de
+  // execução (não vão para o arquivo do ambiente nem para o Git).
+  function gerarCandidato() {
+    var username = "9" + String(Date.now()).slice(-10);
+    bru.setVar("username", username);
+    bru.setVar("password", username);
+    bru.setVar("email", "candidato" + username + "@email.com");
+    bru.setVar("firstname", "Candidato");
+    bru.setVar("lastname", "Teste");
+    bru.setVar("userid", "");
+  }
+  // O 01 abre o fluxo 01 a 07: cada execução parte de um candidato novo, então a resposta é sempre [].
+  gerarCandidato();
+}
 
 script:post-response {
   // Lista vazia = candidato não existe (siga para o 02). Se existir, guarda o id.
   if (Array.isArray(res.body) && res.body.length > 0) {
-    bru.setEnvVar("userid", String(res.body[0].id));
+    bru.setVar("userid", String(res.body[0].id));
   }
 }
 
@@ -38,6 +53,8 @@ tests {
 
 docs {
   Localiza o candidato pelo `username` (CPF) com a função nativa `core_user_get_users_by_field`.
+
+  O script pré-requisição gera um candidato novo a cada execução do 01 (username de 11 dígitos começando com 9, senha igual ao username, e-mail `candidato<username>@email.com`), então o fluxo 01 a 07 roda do zero quantas vezes quiser e a resposta é sempre `[]`. Os valores ficam em variáveis de execução, que o 02 a 07 enxergam.
   
   - Resposta `[]`: não existe, execute o 02 (Criar candidato).
   - Resposta com um item: já existe; o `id` é salvo em `userid` e o 02 não é necessário.

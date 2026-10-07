@@ -14,7 +14,7 @@ CRM ──▶ cadastra o candidato ──▶ matricula no Vestibular ──▶ c
 |---|---|
 | Cadastrar candidato | o identificador do candidato no Moodle |
 | Matricular no curso do Vestibular | confirmação (o papel padrão é *estudante*) |
-| Consultar resultados | lista de candidatos com **nota** (0–1000) e **concluído** (sim/não) |
+| Consultar resultados | candidatos (paginados) com **nota** (0–1000) e **concluído** (sim/não) |
 
 ## Exemplo
 
@@ -23,15 +23,22 @@ POST /local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibul
 Authorization: Bearer <token>
 Content-Type: application/json
 
-{ "courseid": 10 }
+{ "courseid": 10, "pagina": 1, "porpagina": 100 }
 ```
 
 ```json
-[
-  { "username": "12345678900", "firstname": "Maria", "lastname": "da Silva",
-    "email": "maria@email.com", "courseid": 10, "nota": 760, "concluido": true }
-]
+{
+  "total": 1234, "pagina": 1, "porpagina": 100, "totalpaginas": 13,
+  "candidatos": [
+    { "username": "12345678900", "firstname": "Maria", "lastname": "da Silva",
+      "email": "maria@email.com", "courseid": 10, "nota": 760, "concluido": true,
+      "datamatricula": "2026-10-06T11:00:36-03:00", "dataprova": "2026-10-07T09:42:53-03:00",
+      "dataconclusao": "2026-10-07T09:42:53-03:00" }
+  ]
+}
 ```
+
+`pagina` (padrão 1) e `porpagina` (padrão 100, máximo 500) são opcionais. Para ler todos os candidatos, repita a chamada de `pagina` 1 até `totalpaginas`. As datas (`datamatricula`, `dataprova`, `dataconclusao`) vêm em ISO 8601 ou `null`. Para listar só quem fez a prova num período, envie `dataprovade` e/ou `dataprovaate` (somente data, `AAAA-MM-DD`).
 
 Os erros vêm prontos para exibir na tela, em português e com o status HTTP adequado:
 

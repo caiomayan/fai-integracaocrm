@@ -61,6 +61,10 @@ final class local_faicrm_rest_json {
         'lang' => 'idioma',
         'theme' => 'tema',
         'courseid' => 'curso',
+        'pagina' => 'pagina',
+        'porpagina' => 'porpagina',
+        'dataprovade' => 'dataprovade',
+        'dataprovaate' => 'dataprovaate',
         'userid' => 'candidato',
         'roleid' => 'papel',
         'users' => 'candidatos',
@@ -328,6 +332,21 @@ final class local_faicrm_rest_json {
             if (strpos($debug, 'Invalid ' . $text . ':') === 0) {
                 return [400, 'Dados inválidos: verifique o campo ' . self::label($field) . '.'];
             }
+        }
+        // Paginação dos resultados (get_resultados_vestibular).
+        if (strpos($debug, 'pagina must be') === 0) {
+            return [400, 'Dados inválidos: pagina deve ser maior ou igual a 1.'];
+        }
+        foreach (['dataprovade', 'dataprovaate'] as $field) {
+            if ($debug === $field . ' format') {
+                return [400, 'Dados inválidos: ' . $field . ' deve estar no formato AAAA-MM-DD.'];
+            }
+        }
+        if ($debug === 'dataprovade after dataprovaate') {
+            return [400, 'Dados inválidos: dataprovade não pode ser posterior a dataprovaate.'];
+        }
+        if (strpos($debug, 'porpagina must be') === 0) {
+            return [400, 'Dados inválidos: porpagina deve estar entre 1 e 500.'];
         }
         // external_api::validate_context() com contexto inexistente (ex.: matrícula em curso que não existe).
         if (strpos($debug, 'Context does not exist') === 0) {

@@ -1,0 +1,42 @@
+meta {
+  name: 03c Matricular com papel não permitido
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=enrol_manual_enrol_users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enrolments": [
+      {
+        "roleid": 3,
+        "userid": {{userid}},
+        "courseid": {{courseid}}
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 403
+}
+
+tests {
+  test("papel diferente de Estudante é recusado com 403 e mensagem em português", function () {
+    expect(res.status).to.equal(403);
+    expect(res.body.message).to.equal("Não é permitido matricular com este papel.");
+  });
+}
+
+docs {
+  Tenta matricular com `roleid` 3 (professor). O usuário técnico só pode atribuir o papel Estudante, então a resposta é HTTP 403 com `{"message":"Não é permitido matricular com este papel."}` e a matrícula não é feita.
+}

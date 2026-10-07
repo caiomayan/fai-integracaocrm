@@ -25,7 +25,6 @@ body:json {
   }
 }
 
-
 tests {
   test("matrícula devolve 204 sem corpo", function () {
     expect(res.status).to.equal(204);
@@ -35,6 +34,6 @@ tests {
 
 docs {
   Matricula o candidato no curso com `enrol_manual_enrol_users`, **sem `roleid`**: o adaptador usa o papel `student` (procurado pelo shortname, não fixo em 5). Se o `roleid` for enviado, ele é respeitado (veja o 03b).
-
+  
   Sucesso: HTTP 204, sem corpo. O candidato passa a aparecer em Participantes como Estudante.
 }

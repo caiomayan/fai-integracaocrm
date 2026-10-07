@@ -10,6 +10,10 @@
 
 Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 
+## Guias
+- [Integração para o CRM](integracao-crm.md)
+- [Desenvolvimento (ambiente local e testes)](desenvolvimento.md)
+
 ## Specs
 | ID | Spec | Status |
 |---|---|---|

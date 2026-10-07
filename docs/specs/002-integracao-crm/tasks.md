@@ -9,7 +9,7 @@ Legenda: ⬜ a fazer · 🚧 em andamento · ✅ feito · Dono = agente respons�
 | T3 | `simular_prova.php` (tentativa real com N acertos + agregação de conclusão) | CA-05 | agente-setup (Opus) | 🚧 |
 | T4 | Integração Docker: mounts no compose, COPY dos scripts, chamada no entrypoint | RNF-03 | agente-setup (Opus) | 🚧 |
 | T5 | Coleção Bruno (env local + 8 requisições) | CA-07 | agente-bruno (Sonnet) | 🚧 |
-| T6 | Docs: README (seção integração) + `docs/integracao-crm.md` (guia para o CRM / FAI) | — | agente-bruno (Sonnet) | 🚧 |
+| T6 | Docs: README (seção integração) + `docs/integracao-crm.md` (guia para o CRM / FAI) | — | agente-bruno (Sonnet) | ✅ |
 | T8 | Adaptador JSON `rest_json.php` + bump de versão do plugin (1.1.0) | RF-07, CA-08/09/10 | Ferro (Sonnet · medium) | ✅ |
 | T9 | Converter os `.bru` para JSON + `98-json-invalido.bru` | RF-07, CA-07 | Ferro (Sonnet · medium) | ✅ |
 | T10 | Docs: `integracao-crm.md` e README passam a usar JSON como formato principal | RF-07 | Ferro (Sonnet · medium) | ✅ |

@@ -18,6 +18,7 @@ Fluxo: CRM → cria/localiza usuário → matricula no curso → candidato faz a
 - **RF-07 API JSON**: todas as chamadas aceitam corpo **JSON** (`Content-Type: application/json`) no mesmo formato dos exemplos do cliente (`{"users":[...]}`, `{"enrolments":[...]}`) e respondem em **JSON**. Motivo: desacoplar do formato do Moodle, facilitar troca de CRM/plataforma e simular no Bruno. O endpoint nativo form-urlencoded continua funcionando.
 - **RF-08 roleid opcional na matrícula** (endpoint JSON): em `enrol_manual_enrol_users`, cada item de `enrolments` pode omitir `roleid`; nesse caso usa-se o papel **student**, procurado pelo shortname `student` (não fixo em 5, para funcionar em qualquer Moodle). Se `roleid` for enviado, ele é respeitado. A permissão do `ws_crm` continua **só student** (decisão do Caio, 06/10): outro papel → `wsusercannotassign`.
 - **RF-09 HTTP 204** (endpoint JSON): quando o retorno nativo da função é `null` (ex.: matricular, desmatricular), o adaptador responde **204 No Content**, sem corpo.
+- **RF-10 Erros prontos para o front** (endpoint JSON): todo erro responde com corpo **apenas** `{"message": "<descrição em português, clara para o usuário final>"}` e **status HTTP coerente** (decisão do Caio, 06/10): 400 dado inválido · 401 token ausente/inválido · 403 sem permissão · 404 não encontrado · 405 método · 409 duplicado (username/e-mail) · 500 erro interno · 503 serviço desabilitado. Detalhes técnicos (exception, errorcode, debuginfo, caminhos) **nunca** vão na resposta: vão para o log do servidor, com um id de correlação devolvido no header `X-Request-Id`. Sucessos não mudam (200 + JSON, ou 204).
 - **RF-06 Serviço dedicado** "CRM Vestibular FAI" com **apenas** as funções necessárias, usuário técnico próprio e token permanente. Sem acesso administrativo amplo.
 
 ## Requisitos não funcionais
@@ -38,6 +39,9 @@ Fluxo: CRM → cria/localiza usuário → matricula no curso → candidato faz a
 - **CA-09** JSON malformado → erro JSON `invalidjson`; método diferente de POST → erro JSON `methodnotallowed` (HTTP 405); sem token → erro nativo em JSON; chaves `wstoken`/`wsfunction`/`moodlewsrestformat` no corpo não sobrescrevem o header/query.
 - **CA-11** Matrícula JSON sem `roleid` → 204 e o candidato fica como student; com `"roleid":5` → 204; com `"roleid":3` → `wsusercannotassign`; itens mistos (com e sem roleid) na mesma chamada funcionam.
 - **CA-12** Matricular e desmatricular com sucesso → HTTP 204, corpo vazio; funções que retornam dados continuam 200 + JSON; erros continuam JSON.
+> **Nota (RF-10):** no endpoint JSON, o formato de erro de CA-02, CA-06, CA-09 e CA-11 passa a ser `{"message"}` + status HTTP da tabela do design (ex.: token inválido = 401, não mais `errorcode: invalidtoken`). No endpoint nativo, esses CAs continuam como estão.
+- **CA-13** Cada erro conhecido (JSON inválido, sem wsfunction, método, token inválido/ausente, função fora do serviço, papel não permitido, username duplicado, e-mail duplicado, parâmetro faltando ou com tipo errado, curso inexistente, erro interno) devolve o status da tabela do design e corpo só com `message` em português.
+- **CA-14** Nenhuma resposta de erro contém stack trace, caminho de arquivo, nome de classe/exception, SQL ou o token; o log do servidor tem o detalhe e o mesmo `X-Request-Id`.
 - **CA-10** O endpoint nativo `/webservice/rest/server.php` (form-urlencoded) continua funcionando como antes.
 
 ## Fora do escopo

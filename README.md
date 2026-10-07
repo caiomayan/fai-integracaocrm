@@ -45,7 +45,7 @@ Ao subir, o `setup.php` configura web services, o usuário técnico `ws_crm`, o 
 - `output/token.txt`: token do serviço (use no Bruno e no CRM);
 - `output/ids.json`: `courseid`, `quizid`, `cmid`, `serviceid`.
 
-**API JSON (formato principal):** `POST http://localhost:8080/local/faicrm/rest_json.php?wsfunction=<função>` com `Authorization: Bearer <token>` e `Content-Type: application/json`. O corpo é o JSON do cliente (ex.: `{"users":[{"username":"…","password":"…","firstname":"…","lastname":"…","email":"…","auth":"manual","idnumber":"…"}]}` ou `{"enrolments":[{"userid":10,"courseid":2}]}`; `roleid` é opcional e o padrão é o papel `student`). O adaptador (plugin `local_faicrm`) delega ao servidor REST nativo; erros próprios: `invalidjson` (400), `missingwsfunction` (400), `methodnotallowed` (405). Matricular e desmatricular respondem **204** sem corpo. O endpoint nativo `/webservice/rest/server.php` (form-urlencoded) continua disponível como alternativa.
+**API JSON (formato principal):** `POST http://localhost:8080/local/faicrm/rest_json.php?wsfunction=<função>` com `Authorization: Bearer <token>` e `Content-Type: application/json`. O corpo é o JSON do cliente (ex.: `{"users":[{"username":"…","password":"…","firstname":"…","lastname":"…","email":"…","auth":"manual","idnumber":"…"}]}` ou `{"enrolments":[{"userid":10,"courseid":2}]}`; `roleid` é opcional e o padrão é o papel `student`). O adaptador (plugin `local_faicrm`) delega ao servidor REST nativo. Erros respondem com status HTTP coerente (400, 401, 403, 404, 405, 409, 413, 500, 503) e corpo só `{"message": "…"}` em português; o detalhe técnico fica no log do Moodle, localizável pelo header `X-Request-Id`. Matricular e desmatricular respondem **204** sem corpo. O endpoint nativo `/webservice/rest/server.php` (form-urlencoded) continua disponível como alternativa.
 
 **Bruno (simula o CRM, com corpo JSON):** abra a pasta `bruno/` em *Open Collection*, escolha o ambiente `local` e preencha a variável `token` com o conteúdo de `output/token.txt` (e `courseid` com o de `ids.json`, se for diferente de 2).
 O script do 02/01 grava `userid` no ambiente (o Bruno salva em `environments/local.bru`); não versione esse valor.
@@ -55,7 +55,7 @@ Cada candidato precisa de `username` **e** `email` únicos — para um novo test
 ```powershell
 docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=12345678900 --acertos=4
 ```
-A conclusão depende do cron (roda a cada minuto). `05`/`06` são as funções nativas de conclusão e notas, `07` desmatricula (03, 03b e 07 devolvem 204), `98` mostra o erro de JSON inválido e `99` o de token inválido.
+A conclusão depende do cron (roda a cada minuto). `05`/`06` são as funções nativas de conclusão e notas, `07` desmatricula (03, 03b e 07 devolvem 204), `95` a `99` mostram erros: campo obrigatório (400), curso inexistente (404), candidato duplicado (409), JSON inválido (400) e token inválido (401).
 
 Guia completo (fluxo, parâmetros, erros, implantação na FAI): [docs/integracao-crm.md](docs/integracao-crm.md).
 

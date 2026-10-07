@@ -78,9 +78,50 @@ Exemplo (JSON da resposta REST):
 - Chaves reservadas `wstoken`, `wsfunction`, `moodlewsrestformat` no corpo são **descartadas** (token só pelo header, função só pela query).
 - **roleid padrão (RF-08)**: só para `wsfunction=enrol_manual_enrol_users`, itens de `enrolments` sem `roleid` recebem o id do papel `student` (consulta `role.shortname='student'`). Para isso o adaptador carrega o `config.php` e executa ele mesmo o servidor nativo (`new webservice_rest_server(WEBSERVICE_AUTHMETHOD_PERMANENT_TOKEN)->run()`, como o `webservice/rest/server.php` faz), em vez de `chdir` + `require` do server.php.
 - **204 (RF-09)**: se o corpo nativo de sucesso for `null`, a resposta é HTTP 204 sem corpo (via buffer de saída).
-- Resposta: `application/json`; sucesso = exatamente o retorno nativo (exceto `null` → 204); erro = formato nativo `{"exception","errorcode","message"}` (HTTP 200, como o nativo).
-- Erros do próprio adaptador (mesmo formato JSON): `invalidjson` (corpo não é objeto JSON válido, HTTP 400), `methodnotallowed` (não-POST, HTTP 405), `missingwsfunction` (sem `wsfunction`, HTTP 400). Sem header Bearer → segue para o nativo, que responde o erro de token em JSON.
+- Resposta: `application/json`; sucesso = exatamente o retorno nativo (exceto `null` → 204); erro = `{"message"}` + status HTTP (RF-10, ver abaixo).
+- Erros do próprio adaptador (mesmo formato RF-10): `invalidjson` (400), `missingwsfunction` (400), `invalidwsfunction` (400), `methodnotallowed` (405), `payloadtoolarge` (413), `protocoldisabled` (503). Sem header Bearer → segue para o nativo, que recusa o token (401).
 - O endpoint nativo form-urlencoded continua funcionando (compatibilidade).
+
+## Contrato — erros do adaptador (RF-10)
+Como funciona (T14): o adaptador usa uma subclasse do servidor nativo (`local_faicrm_rest_json_server extends webservice_rest_server`) que só sobrescreve `send_error()` (recebe a **exceção original**, com `errorcode` e `debuginfo`, independente do nível de debug do site) e marca a fase de `authenticate_user()`. Autenticação, permissões, validação e execução continuam nativas. Falhas antes do servidor (setup do Moodle, `raise_early_ws_exception`) e erros fatais do PHP (shutdown) usam o mesmo formato. Errorcodes confirmados no Moodle 4.5.14:
+
+| Situação | errorcode / origem (Moodle 4.5) | HTTP | message |
+|---|---|---|---|
+| Corpo não é objeto JSON (ou profundidade > 32) | (adaptador) invalidjson | 400 | "O corpo da requisição deve ser um objeto JSON válido." |
+| Falta `?wsfunction=` | (adaptador) missingwsfunction | 400 | "Informe a operação desejada (parâmetro wsfunction)." |
+| `wsfunction` fora de `^[a-z][a-z0-9_]{0,199}$` | (adaptador) invalidwsfunction | 400 | "Operação inválida: verifique o parâmetro wsfunction." |
+| Método ≠ POST | (adaptador) methodnotallowed | 405 | "Método não permitido. Use POST." |
+| Corpo > 1 MiB | (adaptador) payloadtoolarge | 413 | "O corpo da requisição é grande demais (máximo de 1 MB)." |
+| Token ausente/inválido | invalidtoken | 401 | "Token de acesso inválido ou ausente." |
+| Token expirado | accessexception (debuginfo "Invalid token - token expired") | 401 | idem |
+| Função fora do serviço / sem capability | accessexception, nopermissions, requireloginerror, restrictedcontextexception, servicerequireslogin | 403 | "Operação não permitida para esta integração." |
+| Usuário técnico suspenso / IP / sem `webservice/rest:use` (fase de autenticação) | wsaccessusersuspended, wsaccessusernologin, accessexception, … | 403 | idem |
+| Papel não permitido | wsusercannotassign | 403 | "Não é permitido matricular com este papel." |
+| Username duplicado | invalidparameter (debuginfo "Username already exists: …") | 409 | "Já existe um candidato com este usuário." |
+| E-mail duplicado | invalidparameter (debuginfo "Email address already exists: …") | 409 | "Já existe um candidato com este e-mail." |
+| Campo obrigatório ausente | invalidparameter (debuginfo "…Missing required key in single structure: X") | 400 | "Dados inválidos: o campo X é obrigatório." |
+| Tipo/valor errado | invalidparameter (debuginfo "X => …: <detalhe>") | 400 | "Dados inválidos: verifique o campo X." |
+| Campo em branco | invalidparameter ("The field X cannot be blank") | 400 | "Dados inválidos: o campo X não pode ficar em branco." |
+| Campo não reconhecido | invalidparameter ("Unexpected keys (…)") | 400 | "Dados inválidos: há campos não reconhecidos em X." |
+| E-mail inválido / auth / lang / theme / senha ausente | invalidparameter (debuginfo específico) | 400 | "Dados inválidos: e-mail inválido." / "…verifique o campo X." / "…o campo senha é obrigatório." |
+| Username com maiúsculas / caracteres inválidos | usernamelowercase, invalidusername | 400 | "Dados inválidos: o usuário …" |
+| Senha fora da política | moodle_exception com errorcode = texto da política (`<div>…`) | 400 | "A senha não atende à política de senhas do Moodle." |
+| Matricular o guest | guestsarenotallowed | 400 | "Dados inválidos: este usuário não pode ser matriculado." |
+| Curso inexistente | dml_missing_record_exception tabela course (invalidrecord); invalidparameter "Context does not exist" (enrol); errorcoursecontextnotvalid; invalidcourseid | 404 | "Curso não encontrado." |
+| Candidato inexistente/excluído | dml_missing_record_exception tabela user (invaliduser); userdeleted | 404 | "Candidato não encontrado." |
+| Prova inexistente | dml_missing_record_exception tabela quiz | 404 | "Prova não encontrada." |
+| Função inexistente no Moodle | dml_missing_record_exception tabela external_functions | 404 | "Operação não encontrada: verifique o parâmetro wsfunction." |
+| Curso sem inscrição manual | wsnoinstance, wscannotenrol, wscannotunenrol | 409 | "O curso não aceita matrícula manual no momento." |
+| Candidato suspenso/não confirmado | suspended, usernotconfirmed | 409 | "O candidato está suspenso ou com cadastro incompleto no Moodle." |
+| Web services/REST desabilitado | (adaptador) protocoldisabled | 503 | "Serviço temporariamente indisponível. Tente novamente mais tarde." |
+| Serviço "CRM Vestibular FAI" desabilitado | accessexception + `external_services.enabled = 0` | 503 | idem |
+| Manutenção / banco fora | sitemaintenance, dbconnectionfailed | 503 | idem |
+| Qualquer outro / falha interna / erro fatal do PHP | * (coding_exception, dml_write_exception, invalidresponse, fatalerror…) | 500 | "Erro interno. Tente novamente mais tarde." |
+
+- Resposta de erro: só `{"message": …}`, `Content-Type: application/json; charset=utf-8`, header `X-Request-Id`.
+- Log: `error_log` (uma linha JSON, prefixo `local_faicrm rest_json`) com requestid, status, wsfunction, errorcode, exception, message e debuginfo (+ arquivo:linha só nos 5xx). **Nunca** loga o token nem a senha: nos campos `message`, `debuginfo` e `where`, os valores do token e de toda chave `password` do corpo (ocorrência delimitada, ou qualquer ocorrência se tiver 8+ caracteres) e hashes de senha são trocados por `[omitido]`; `requestid`, `wsfunction`, `errorcode` e `exception` nunca são alterados (correlação).
+- Headers de segurança (em **todas** as respostas do adaptador, inclusive sucesso): `X-Request-Id`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`; sem `Access-Control-Allow-Origin` (o token só é usado no backend, RNF-04) e sem `X-Powered-By`. 401 traz `WWW-Authenticate: Bearer`; 405 traz `Allow: POST`.
+- O endpoint nativo `/webservice/rest/server.php` **não** muda (CA-10).
 
 ## Coleção Bruno
 **(Atualizado — RF-07)** Todas as requisições usam o adaptador: `POST {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=…`, `auth:bearer { token: {{token}} }`, `body:json`. Sem `wstoken`/`moodlewsrestformat` no corpo. Acrescentar `98-json-invalido.bru`. A descrição abaixo (form-urlencoded) vale só para o endpoint nativo.

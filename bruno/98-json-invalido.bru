@@ -24,17 +24,20 @@ body:text {
 
 assert {
   res.status: eq 400
-  res.body.errorcode: eq invalidjson
+  res.body.message: eq O corpo da requisição deve ser um objeto JSON válido.
 }
 
 tests {
-  test("adaptador responde invalidjson", function () {
-    expect(res.body.exception).to.be.a("string");
-    expect(res.body.errorcode).to.equal("invalidjson");
+  test("erro só com message, sem detalhes técnicos", function () {
+    expect(Object.keys(res.body)).to.eql(["message"]);
+  });
+  test("tem X-Request-Id e não tem CORS", function () {
+    expect(res.headers["x-request-id"]).to.match(/^[0-9a-f]{16}$/);
+    expect(res.headers["access-control-allow-origin"]).to.equal(undefined);
   });
 }
 
 docs {
   Corpo JSON malformado enviado ao adaptador. Resposta: HTTP 400 com
-  `{"exception":"moodle_exception","errorcode":"invalidjson","message":"Corpo inválido: envie um objeto JSON."}`.
+  `{"message":"O corpo da requisição deve ser um objeto JSON válido."}`.
 }

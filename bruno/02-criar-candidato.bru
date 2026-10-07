@@ -49,5 +49,5 @@ docs {
   
   O script pós-resposta salva o `id` na variável `userid`, usada no 03.
   
-  Executar de novo com o mesmo `username` devolve erro nativo (`invalidparameter`), sem duplicar o usuário. Nesse caso este teste falha de propósito: use o 01 para localizar o candidato.
+  Executar de novo com o mesmo `username` devolve HTTP 409 (`{"message":"Já existe um candidato com este usuário."}`), sem duplicar o usuário (veja o 97). Nesse caso este teste falha de propósito: use o 01 para localizar o candidato.
 }

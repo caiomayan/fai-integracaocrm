@@ -21,18 +21,20 @@ body:json {
 }
 
 assert {
-  res.status: eq 200
-  res.body.errorcode: eq invalidtoken
+  res.status: eq 401
+  res.body.message: eq Token de acesso inválido ou ausente.
 }
 
 tests {
-  test("Moodle responde com exceção invalidtoken", function () {
-    expect(res.body.exception).to.be.a("string");
-    expect(res.body.errorcode).to.equal("invalidtoken");
+  test("erro só com message, sem detalhes técnicos", function () {
+    expect(Object.keys(res.body)).to.eql(["message"]);
+  });
+  test("tem X-Request-Id", function () {
+    expect(res.headers["x-request-id"]).to.match(/^[0-9a-f]{16}$/);
   });
 }
 
 docs {
-  Mesma chamada do 04 com token inválido (header Bearer). O Moodle responde HTTP 200 com
-  `{"exception":"moodle_exception","errorcode":"invalidtoken","message":"Token inválido - token não encontrado"}`.
+  Mesma chamada do 04 com token inválido (header Bearer). Resposta: HTTP 401 com
+  `{"message":"Token de acesso inválido ou ausente."}`. Sem o header Authorization a resposta é a mesma.
 }

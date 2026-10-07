@@ -16,6 +16,8 @@ Legenda: ⬜ a fazer · 🚧 em andamento · ✅ feito · Dono = agente respons�
 | T11 | QA: revisão de código + testes CA-07…CA-10 + regressão CA-01…CA-06 | todos | Lupa (Opus · medium) | ✅ APROVADO |
 | T12 | Adaptador: roleid opcional (padrão student) + 204 para retorno null; Bruno (03 sem roleid, testes de 204) e docs | RF-08, RF-09, CA-11, CA-12 | Ferro (Sonnet · medium) | ✅ |
 | T13 | QA de T12 + regressão CA-01…CA-10 | CA-01…CA-12 | Lupa (Opus · medium) | ✅ APROVADO |
+| T14 | Tratamento de erros RF-10 (mapa errorcode→HTTP+message PT, log com X-Request-Id, headers de segurança) + revisão de segurança do adaptador; Bruno e docs | RF-10, CA-13, CA-14 | Muralha (Opus · high) | ✅ |
+| T15 | QA de T14 + regressão CA-01…CA-12 | CA-01…CA-14 | Lupa (Opus · medium) | ✅ APROVADO |
 | T7 | Verificação ponta a ponta (`down -v`, up, CA-01…CA-07) + navegador | todos os CA | orquestrador | ✅ |
 
 ## Resultado da verificação (T7 — 2026-10-06)
@@ -46,3 +48,16 @@ Ajustes do orquestrador: `$CFG->noemailever` no config dev (envio de quiz quebra
 - Achado corrigido pelo Ferro:
   - (médio) Ao deixar de usar o server.php, o adaptador perdeu o `raise_early_ws_exception()`. Falhas no início do Moodle (ex.: banco fora) saíam em HTML, com stack trace. Agora saem em JSON (`dbconnectionfailed`).
 - Comportamentos aceitos: `roleid: null` é tratado como ausente (vira student); a busca do papel student acontece antes da autenticação (1 SELECT de leitura, sem saída).
+
+## Resultado do QA do RF-10 (T15, Lupa, 2026-10-07): APROVADO
+- CA-01 a CA-14 OK na :8080 e numa instalação do zero (plugin 2026100604 / 1.3.0).
+- Todas as linhas da tabela de erros foram provocadas com curl, incluindo os casos destrutivos na stack isolada: 503 e 500 (banco fora, manutenção, serviço desligado) e token expirado.
+- Bruno CLI: 13/13 requisições, 17/17 testes.
+- Achado corrigido pelo Muralha:
+  - (médio) O `redact()` trocava a senha em todos os campos do log. Com senha curta, quebrava o `requestid` e impedia achar a linha pelo `X-Request-Id`. Agora a redação vale só para message/debuginfo/where, e só em ocorrência delimitada (qualquer ocorrência para segredos com 8 ou mais caracteres).
+- Infos aceitas:
+  - candidato suspenso é matriculado normalmente pelo nativo;
+  - username com maiúsculas cai na mensagem genérica de campo;
+  - o 413 diz "1 MB", mas o limite é 1 MiB.
+- Desvios do Muralha aceitos pelo QA: 409 também para conflito de estado; 413; wsfunction inexistente = 404 (só alcançável depois da autenticação).
+- Interrupção em 06–07/10: o notebook foi desligado no meio do T15; o trabalho foi retomado na etapa da fai-qa.

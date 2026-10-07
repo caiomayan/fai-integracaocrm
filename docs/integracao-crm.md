@@ -67,9 +67,9 @@ Resposta:
 ```json
 [{"id": 123, "username": "12345678900"}]
 ```
-Guarde o `id`. Criar de novo o mesmo `username` devolve erro (`invalidparameter`), sem duplicar. Por isso o CRM deve localizar antes de criar.
+Guarde o `id`. Criar de novo o mesmo `username` devolve **HTTP 409** (`Já existe um candidato com este usuário.`), sem duplicar. Por isso o CRM deve localizar antes de criar.
 
-> **E-mail também precisa ser único.** Com a configuração padrão do Moodle (`allowaccountssameemail = 0`), criar um candidato com um e-mail que outra conta já usa também devolve `invalidparameter`, mesmo com `username` diferente. Verificado no ambiente local. Confirmar a configuração no Moodle da FAI.
+> **E-mail também precisa ser único.** Com a configuração padrão do Moodle (`allowaccountssameemail = 0`), criar um candidato com um e-mail que outra conta já usa também devolve **HTTP 409** (`Já existe um candidato com este e-mail.`), mesmo com `username` diferente. Verificado no ambiente local. Confirmar a configuração no Moodle da FAI.
 
 ### 3. Matricular — `enrol_manual_enrol_users`
 Corpo (números como número). O `roleid` é **opcional**: sem ele, o adaptador usa o papel `student` (procurado pelo shortname, não fixo em 5):
@@ -80,7 +80,7 @@ Com `roleid` explícito (5 = Estudante no Moodle padrão), ele é respeitado:
 ```json
 {"enrolments": [{"roleid": 5, "userid": 123, "courseid": 2}]}
 ```
-O usuário técnico só pode atribuir o papel Estudante: outro `roleid` devolve `wsusercannotassign`. Itens com e sem `roleid` podem ser misturados na mesma chamada.
+O usuário técnico só pode atribuir o papel Estudante: outro `roleid` devolve **HTTP 403** (`Não é permitido matricular com este papel.`). Itens com e sem `roleid` podem ser misturados na mesma chamada.
 
 Resposta de sucesso: **HTTP 204**, sem corpo.
 
@@ -113,26 +113,43 @@ Corpo: `{"enrolments": [{"userid": 123, "courseid": 2}]}` (`roleid` opcional). R
 
 Quando a função não devolve dados (matricular e desmatricular), o adaptador responde **HTTP 204 No Content**, sem corpo e sem `Content-Type`; trate 204 como sucesso. Funções com dados respondem 200 com JSON.
 
-Erros do Moodle seguem o formato nativo, com **HTTP 200** (o CRM deve verificar o campo `exception`):
+Todo erro responde com um **status HTTP de erro** (4xx/5xx) e um corpo com **apenas** a mensagem, em português e pronta para exibir ao usuário final:
 ```json
-{"exception": "core\\exception\\moodle_exception", "errorcode": "invalidtoken", "message": "Token inválido - token não encontrado"}
+{"message": "Já existe um candidato com este usuário."}
 ```
+Detalhes técnicos (exceção, código interno, SQL, caminhos) **não** vão na resposta: ficam no log do servidor Moodle. Toda resposta do adaptador traz o header `X-Request-Id`; ao abrir um chamado, informe esse valor para localizar o detalhe no log. O CRM deve decidir pelo **status HTTP**, não pelo texto da mensagem (o texto pode mudar).
 
-| errorcode | significado |
-|---|---|
-| `invalidtoken` | token incorreto, removido ou ausente (sem header Bearer) |
-| `accessexception` | função fora do serviço ou usuário sem permissão |
-| `invalidparameter` | parâmetro inválido ou duplicado (ex.: username ou e-mail já existe) |
-| `wsusercannotassign` | `roleid` diferente de Estudante (o usuário técnico só atribui Estudante) |
-| `invalidrecord` | registro inexistente (ex.: curso) |
-
-Erros do próprio adaptador, no mesmo formato JSON:
-
-| errorcode | HTTP | significado |
+| Situação | HTTP | message |
 |---|---|---|
-| `invalidjson` | 400 | corpo não é um objeto JSON válido |
-| `missingwsfunction` | 400 | falta `wsfunction` na query string |
-| `methodnotallowed` | 405 | método diferente de POST |
+| Corpo não é um objeto JSON válido | 400 | O corpo da requisição deve ser um objeto JSON válido. |
+| Falta `?wsfunction=` | 400 | Informe a operação desejada (parâmetro wsfunction). |
+| `wsfunction` com caracteres inválidos | 400 | Operação inválida: verifique o parâmetro wsfunction. |
+| Campo obrigatório ausente | 400 | Dados inválidos: o campo `<campo>` é obrigatório. |
+| Campo com tipo/valor inválido | 400 | Dados inválidos: verifique o campo `<campo>`. |
+| Campo obrigatório em branco (username, firstname, lastname) | 400 | Dados inválidos: o campo `<campo>` não pode ficar em branco. |
+| Campo não reconhecido no corpo | 400 | Dados inválidos: há campos não reconhecidos em `<campo>`. |
+| E-mail em formato inválido | 400 | Dados inválidos: e-mail inválido. |
+| Senha fora da política do site | 400 | A senha não atende à política de senhas do Moodle. |
+| Outro dado inválido | 400 | Dados inválidos: verifique os dados enviados. |
+| Token ausente, inválido ou expirado | 401 | Token de acesso inválido ou ausente. |
+| Função fora do serviço, sem permissão, usuário técnico bloqueado | 403 | Operação não permitida para esta integração. |
+| Matrícula com papel diferente de Estudante | 403 | Não é permitido matricular com este papel. |
+| Curso inexistente | 404 | Curso não encontrado. |
+| Candidato (`userid`) inexistente ou excluído | 404 | Candidato não encontrado. |
+| Prova (`quizid`) inexistente | 404 | Prova não encontrada. |
+| `wsfunction` que não existe no Moodle | 404 | Operação não encontrada: verifique o parâmetro wsfunction. |
+| Método diferente de POST | 405 | Método não permitido. Use POST. |
+| Username já existe | 409 | Já existe um candidato com este usuário. |
+| E-mail já existe | 409 | Já existe um candidato com este e-mail. |
+| Curso sem inscrição manual ativa | 409 | O curso não aceita matrícula manual no momento. |
+| Candidato suspenso ou não confirmado | 409 | O candidato está suspenso ou com cadastro incompleto no Moodle. |
+| Corpo maior que 1 MB | 413 | O corpo da requisição é grande demais (máximo de 1 MB). |
+| Qualquer outra falha interna | 500 | Erro interno. Tente novamente mais tarde. |
+| Web services/REST/serviço desabilitado, manutenção, banco fora do ar | 503 | Serviço temporariamente indisponível. Tente novamente mais tarde. |
+
+`<campo>` aparece com nome amigável: usuário, senha, nome, sobrenome, e-mail, curso, candidato (`userid`), papel (`roleid`), candidatos (`users`), matrículas (`enrolments`) etc.
+
+Headers de toda resposta do adaptador: `X-Request-Id`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. Não há `Access-Control-Allow-Origin` (CORS): a API é só para o backend do CRM. Respostas 401 trazem `WWW-Authenticate: Bearer`; 405 traz `Allow: POST`.
 
 ## Alternativa: endpoint nativo (form-urlencoded)
 
@@ -141,7 +158,7 @@ O endpoint nativo continua funcionando, para quem preferir:
 POST {baseUrl}/webservice/rest/server.php
 Content-Type: application/x-www-form-urlencoded
 ```
-Parâmetros fixos: `wstoken`, `wsfunction`, `moodlewsrestformat=json`. No endpoint nativo a matrícula continua exigindo `roleid`, e o sucesso é `200` com corpo `null`. Os arrays vão indexados (`users[0][username]=12345678900`, `enrolments[0][roleid]=5`, `values[0]=12345678900`), com colchetes codificados na URL se a biblioteca HTTP não o fizer.
+Parâmetros fixos: `wstoken`, `wsfunction`, `moodlewsrestformat=json`. No endpoint nativo a matrícula continua exigindo `roleid`, o sucesso é `200` com corpo `null` e os erros seguem o formato nativo do Moodle (HTTP 200 com `{"exception", "errorcode", "message"}`). Os arrays vão indexados (`users[0][username]=12345678900`, `enrolments[0][roleid]=5`, `values[0]=12345678900`), com colchetes codificados na URL se a biblioteca HTTP não o fizer.
 
 ## Implantação no Moodle da FAI
 

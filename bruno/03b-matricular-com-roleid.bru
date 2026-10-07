@@ -26,6 +26,7 @@ body:json {
   }
 }
 
+
 tests {
   test("matrícula devolve 204 sem corpo", function () {
     expect(res.status).to.equal(204);
@@ -34,7 +35,7 @@ tests {
 }
 
 docs {
-  Igual ao 03, mas envia `roleid` explicitamente (`{{roleid}}`, 5 = Estudante). O papel enviado é respeitado; o `ws_crm` só pode atribuir Estudante (outro papel devolve `wsusercannotassign`).
-
+  Igual ao 03, mas envia `roleid` explicitamente (`{{roleid}}`, 5 = Estudante). O papel enviado é respeitado; o `ws_crm` só pode atribuir Estudante (outro papel devolve HTTP 403 `{"message":"Não é permitido matricular com este papel."}`).
+  
   Sucesso: HTTP 204, sem corpo.
 }

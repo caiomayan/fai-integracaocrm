@@ -1,0 +1,23 @@
+meta {
+  name: 05 Conclusão do candidato
+  type: http
+  seq: 13
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/core_completion_get_course_completion_status
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "courseid": 2,
+    "userid": 72
+  }
+}
+
+docs {
+  Estado de conclusão do curso da Maria (função nativa).
+  Resposta esperada: 200 `{"completionstatus": {"completed": ..., ...}, "warnings": []}`.
+}

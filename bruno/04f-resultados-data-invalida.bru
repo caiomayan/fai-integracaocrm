@@ -1,7 +1,7 @@
 meta {
-  name: 04b Página inválida
+  name: 04f Data inválida
   type: http
-  seq: 7
+  seq: 11
 }
 
 post {
@@ -13,11 +13,11 @@ post {
 body:json {
   {
     "courseid": 2,
-    "pagina": 0
+    "dataprovade": "07/10/2026"
   }
 }
 
 docs {
-  `pagina` precisa ser maior ou igual a 1.
-  Resposta esperada: 400 "Dados inválidos: pagina deve ser maior ou igual a 1."
+  A data só aceita o formato AAAA-MM-DD.
+  Resposta esperada: 400 "Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD."
 }

@@ -1,0 +1,24 @@
+meta {
+  name: 04d Provas no período
+  type: http
+  seq: 9
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "courseid": 2,
+    "dataprovade": "2026-09-08",
+    "dataprovaate": "2026-10-07"
+  }
+}
+
+docs {
+  Só candidatos que fizeram a prova entre 08/09/2026 e 07/10/2026 (os dois dias entram).
+  Resposta esperada: 200 com os candidatos do período (pode ser `total: 0`).
+}

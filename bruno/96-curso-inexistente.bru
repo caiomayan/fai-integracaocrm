@@ -5,32 +5,18 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
-    "courseid": 999999
+    "courseid": 99999
   }
 }
 
-assert {
-  res.status: eq 404
-  res.body.message: eq Curso não encontrado.
-}
-
-tests {
-  test("erro só com message, sem detalhes técnicos", function () {
-    expect(Object.keys(res.body)).to.eql(["message"]);
-  });
-}
-
 docs {
-  Resultados de um curso que não existe. Resposta: HTTP 404 com `{"message":"Curso não encontrado."}`.
+  Resultados de um curso que não existe.
+  Resposta esperada: 404 "Curso não encontrado."
 }

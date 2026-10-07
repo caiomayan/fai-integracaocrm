@@ -5,57 +5,21 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_user_get_users_by_field
+  url: http://localhost:8080/local/faicrm/rest_json.php/core_user_get_users_by_field
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
     "field": "username",
-    "values": ["{{username}}"]
+    "values": [
+      "12345678900"
+    ]
   }
-}
-
-script:pre-request {
-  // Gera um candidato único (CPF fictício de 11 dígitos começando com 9) e guarda como variáveis de
-  // execução (não vão para o arquivo do ambiente nem para o Git).
-  function gerarCandidato() {
-    var username = "9" + String(Date.now()).slice(-10);
-    bru.setVar("username", username);
-    bru.setVar("password", username);
-    bru.setVar("email", "candidato" + username + "@email.com");
-    bru.setVar("firstname", "Candidato");
-    bru.setVar("lastname", "Teste");
-    bru.setVar("userid", "");
-  }
-  // O 01 abre o fluxo 01 a 07: cada execução parte de um candidato novo, então a resposta é sempre [].
-  gerarCandidato();
-}
-
-script:post-response {
-  // Lista vazia = candidato não existe (siga para o 02). Se existir, guarda o id.
-  if (Array.isArray(res.body) && res.body.length > 0) {
-    bru.setVar("userid", String(res.body[0].id));
-  }
-}
-
-tests {
-  test("sem exceção do Moodle", function () {
-    expect(res.status).to.equal(200);
-    expect((res.body || {}).exception).to.equal(undefined);
-  });
 }
 
 docs {
-  Localiza o candidato pelo `username` (CPF) com a função nativa `core_user_get_users_by_field`.
-  
-  O script pré-requisição gera um candidato novo a cada execução do 01 (username de 11 dígitos começando com 9, senha igual ao username, e-mail `candidato<username>@email.com`), então o fluxo 01 a 07 roda do zero quantas vezes quiser e a resposta é sempre `[]`. Os valores ficam em variáveis de execução, que o 02 a 07 enxergam.
-  
-  - Resposta `[]`: não existe, execute o 02 (Criar candidato).
-  - Resposta com um item: já existe; o `id` é salvo em `userid` e o 02 não é necessário.
+  Localiza a Maria da Silva pelo username (CPF).
+  Resposta esperada: 200 com uma lista com a Maria (id 72). Lista vazia `[]` se o username não existir.
 }

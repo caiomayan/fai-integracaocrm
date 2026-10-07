@@ -1,7 +1,7 @@
 meta {
-  name: 03 Matricular candidato
+  name: 03b Matricular de novo
   type: http
-  seq: 4
+  seq: 5
 }
 
 post {
@@ -22,6 +22,6 @@ body:json {
 }
 
 docs {
-  Matricula a Maria no curso 2 (sem roleid: vale o papel Estudante).
-  Resposta esperada: 204, sem corpo.
+  Repete a matrícula da Maria, que já tem matrícula manual ativa.
+  Resposta esperada: 409 "O candidato já está matriculado neste curso."
 }

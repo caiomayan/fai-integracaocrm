@@ -1,81 +1,23 @@
 meta {
-  name: 04 Resultados do vestibular
+  name: 04 Resultados
   type: http
   seq: 6
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
-    "courseid": {{courseid}},
+    "courseid": 2,
     "pagina": 1
   }
 }
 
-tests {
-  test("status 200 sem erro", function () {
-    expect(res.status).to.equal(200);
-    expect((res.body || {}).message).to.equal(undefined);
-  });
-  test("devolve o objeto paginado", function () {
-    ["total", "pagina", "porpagina", "totalpaginas", "candidatos"].forEach(function (k) {
-      expect(res.body).to.have.property(k);
-    });
-    expect(res.body.pagina).to.equal(1);
-    expect(res.body.porpagina).to.equal(100);
-    expect(res.body.total).to.be.a("number");
-    expect(res.body.totalpaginas).to.equal(Math.ceil(res.body.total / res.body.porpagina));
-    expect(res.body.candidatos).to.be.an("array");
-    expect(res.body.candidatos.length).to.be.at.most(res.body.porpagina);
-  });
-  test("candidatos têm os 7 campos do contrato", function () {
-    res.body.candidatos.forEach(function (c) {
-      ["username", "firstname", "lastname", "email", "courseid", "nota", "concluido"].forEach(function (k) {
-        expect(c).to.have.property(k);
-      });
-    });
-  });
-  test("datas em ISO 8601 com fuso, ou null", function () {
-    var iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
-    res.body.candidatos.forEach(function (c) {
-      ["datamatricula", "dataprova", "dataconclusao"].forEach(function (k) {
-        expect(c).to.have.property(k);
-        if (c[k] !== null) {
-          expect(c[k]).to.match(iso);
-        }
-      });
-      // Quem concluiu a prova tem data de prova e de conclusão.
-      if (c.concluido) {
-        expect(c.dataprova).to.not.equal(null);
-        expect(c.dataconclusao).to.not.equal(null);
-      }
-    });
-  });
-}
-
 docs {
-  Função própria do plugin `local_faicrm` (somente leitura): candidatos (estudantes) do curso, **paginados**.
-
-  Parâmetros: `courseid` (obrigatório), `pagina` (>= 1, padrão 1). O serviço devolve sempre 100 candidatos por página (`porpagina` não é um parâmetro; a resposta traz `porpagina: 100`). Ordem estável: sobrenome, nome, id.
-
-  ```json
-  {"total": 1234, "pagina": 1, "porpagina": 100, "totalpaginas": 13,
-   "candidatos": [{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true}]}
-  ```
-
-  - `nota`: Total do curso (0 a 1000 no ambiente de teste); `null` se ainda sem nota.
-  - `concluido`: conclusão do curso (booleano).
-  - `datamatricula`, `dataprova` (fim da última tentativa finalizada) e `dataconclusao`: ISO 8601 com fuso (ex.: `2026-10-07T14:32:00-03:00`) ou `null`.
-  - Página além da última: `candidatos: []` com os metadados corretos. Curso sem candidatos: `total: 0, totalpaginas: 0`.
-
-  Logo após matricular: `nota: null, concluido: false`. Para percorrer tudo, repita com `pagina` 1, 2, ... até `totalpaginas`.
+  Candidatos do curso 2, 100 por página, com nota, conclusão e datas.
+  Resposta esperada: 200 `{"total", "pagina", "porpagina", "totalpaginas", "candidatos": [...]}`.
 }

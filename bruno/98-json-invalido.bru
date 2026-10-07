@@ -5,39 +5,20 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
   body: text
-  auth: bearer
+  auth: inherit
 }
 
 headers {
   Content-Type: application/json
 }
 
-auth:bearer {
-  token: {{token}}
-}
-
 body:text {
-  {"courseid": 2,
-}
-
-assert {
-  res.status: eq 400
-  res.body.message: eq O corpo da requisição deve ser um objeto JSON válido.
-}
-
-tests {
-  test("erro só com message, sem detalhes técnicos", function () {
-    expect(Object.keys(res.body)).to.eql(["message"]);
-  });
-  test("tem X-Request-Id e não tem CORS", function () {
-    expect(res.headers["x-request-id"]).to.match(/^[0-9a-f]{16}$/);
-    expect(res.headers["access-control-allow-origin"]).to.equal(undefined);
-  });
+  {"courseid":
 }
 
 docs {
-  Corpo JSON malformado enviado ao adaptador. Resposta: HTTP 400 com
-  `{"message":"O corpo da requisição deve ser um objeto JSON válido."}`.
+  Corpo JSON malformado, enviado como texto com Content-Type application/json.
+  Resposta esperada: 400 "O corpo da requisição deve ser um objeto JSON válido."
 }

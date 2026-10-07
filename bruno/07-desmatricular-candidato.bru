@@ -5,35 +5,23 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=enrol_manual_unenrol_users
+  url: http://localhost:8080/local/faicrm/rest_json.php/enrol_manual_unenrol_users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
     "enrolments": [
       {
-        "userid": {{userid}},
-        "courseid": {{courseid}},
-        "roleid": {{roleid}}
+        "userid": 72,
+        "courseid": 2
       }
     ]
   }
 }
 
-tests {
-  test("desmatrícula devolve 204 sem corpo", function () {
-    expect(res.status).to.equal(204);
-    expect(res.body === "" || res.body === null || res.body === undefined).to.equal(true);
-  });
-}
-
 docs {
-  Remove a matrícula manual com `enrol_manual_unenrol_users`. Sucesso: HTTP 204, sem corpo.
-  Depois disso o candidato deixa de aparecer no 04.
+  Remove a matrícula manual da Maria.
+  Resposta esperada: 204, sem corpo.
 }

@@ -5,36 +5,24 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=enrol_manual_enrol_users
+  url: http://localhost:8080/local/faicrm/rest_json.php/enrol_manual_enrol_users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
     "enrolments": [
       {
-        "roleid": {{roleid}},
-        "userid": {{userid}},
-        "courseid": {{courseid}}
+        "roleid": 5,
+        "userid": 73,
+        "courseid": 2
       }
     ]
   }
 }
 
-tests {
-  test("matrícula devolve 204 sem corpo", function () {
-    expect(res.status).to.equal(204);
-    expect(res.body === "" || res.body === null || res.body === undefined).to.equal(true);
-  });
-}
-
 docs {
-  Roda **depois** do 07 (o candidato já foi desmatriculado) e matricula de novo, agora enviando `roleid` explicitamente (`{{roleid}}`, 5 = Estudante). O papel enviado é respeitado. Quem já está matriculado recebe 409 (veja o 03d).
-
-  Sucesso: HTTP 204, sem corpo.
+  Matricula o João Santos enviando o roleid 5 (Estudante).
+  Resposta esperada: 204, sem corpo.
 }

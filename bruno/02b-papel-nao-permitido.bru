@@ -1,7 +1,7 @@
 meta {
-  name: 03 Matricular candidato
+  name: 02b Papel não permitido
   type: http
-  seq: 4
+  seq: 3
 }
 
 post {
@@ -14,6 +14,7 @@ body:json {
   {
     "enrolments": [
       {
+        "roleid": 3,
         "userid": 72,
         "courseid": 2
       }
@@ -22,6 +23,6 @@ body:json {
 }
 
 docs {
-  Matricula a Maria no curso 2 (sem roleid: vale o papel Estudante).
-  Resposta esperada: 204, sem corpo.
+  Tenta matricular a Maria com o papel 3 (professor); o usuário técnico só atribui Estudante.
+  Resposta esperada: 403 "Não é permitido matricular com este papel."
 }

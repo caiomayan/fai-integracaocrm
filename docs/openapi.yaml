@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.6.0
+  version: 1.6.1
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -157,7 +157,7 @@ paths:
                     username:
                       type: string
               example:
-                - id: 55
+                - id: 72
                   username: "12345678900"
         '400':
           description: Dados inválidos (campo obrigatório ausente, e-mail inválido, senha fora da política etc.).
@@ -240,14 +240,14 @@ paths:
                 summary: Sem roleid (padrão Estudante)
                 value:
                   enrolments:
-                    - userid: 55
+                    - userid: 72
                       courseid: 2
               comRoleid:
                 summary: Com roleid
                 value:
                   enrolments:
                     - roleid: 5
-                      userid: 55
+                      userid: 72
                       courseid: 2
       responses:
         '204':
@@ -339,7 +339,7 @@ paths:
                         description: Opcional. Papel a remover; sem ele, todos os papéis da matrícula manual.
             example:
               enrolments:
-                - userid: 55
+                - userid: 72
                   courseid: 2
       responses:
         '204':

@@ -57,6 +57,7 @@ Os erros vêm prontos para exibir na tela, em português e com o status HTTP ade
 
 ## Documentação
 
+- [Contrato da API (resumo para o time do CRM)](docs/contrato-api-crm.md)
 - [Guia de integração para o CRM](docs/integracao-crm.md): chamadas, parâmetros, erros e implantação.
 - [Desenvolvimento](docs/desenvolvimento.md): ambiente local com Docker e testes com o Bruno.
 - [Especificações](docs/sdd.md): requisitos e decisões do projeto.

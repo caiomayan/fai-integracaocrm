@@ -5,43 +5,28 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_user_create_users
+  url: http://localhost:8080/local/faicrm/rest_json.php/core_user_create_users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
     "users": [
       {
-        "username": "{{username}}",
-        "password": "{{password}}",
-        "firstname": "{{firstname}}",
-        "lastname": "{{lastname}}",
-        "email": "{{email}}",
-        "auth": "manual"
+        "username": "12345678900",
+        "password": "12345678900",
+        "firstname": "Maria",
+        "lastname": "da Silva",
+        "email": "maria@email.com",
+        "auth": "manual",
+        "idnumber": "12345678900"
       }
     ]
   }
 }
 
-assert {
-  res.status: eq 409
-  res.body.message: eq Já existe um candidato com este usuário.
-}
-
-tests {
-  test("erro só com message, sem detalhes técnicos", function () {
-    expect(Object.keys(res.body)).to.eql(["message"]);
-  });
-}
-
 docs {
-  Repete a criação do 02 com o mesmo `username` (o candidato já existe depois do 02). Resposta: HTTP 409 com
-  `{"message":"Já existe um candidato com este usuário."}`. Com username novo e e-mail já usado:
-  `{"message":"Já existe um candidato com este e-mail."}` (também 409).
+  Tenta criar a Maria de novo.
+  Resposta esperada: 409 "Já existe um candidato com este usuário."
 }

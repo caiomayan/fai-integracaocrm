@@ -1,0 +1,24 @@
+meta {
+  name: 04e Data sem provas
+  type: http
+  seq: 10
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "courseid": 2,
+    "dataprovade": "2020-01-01",
+    "dataprovaate": "2020-01-01"
+  }
+}
+
+docs {
+  Um dia em que não houve prova.
+  Resposta esperada: 200 com `total: 0`, `totalpaginas: 0` e `candidatos: []`.
+}

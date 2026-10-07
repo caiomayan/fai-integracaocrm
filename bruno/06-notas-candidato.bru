@@ -1,0 +1,23 @@
+meta {
+  name: 06 Notas do candidato
+  type: http
+  seq: 14
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/gradereport_user_get_grade_items
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "courseid": 2,
+    "userid": 72
+  }
+}
+
+docs {
+  Itens de nota da Maria no curso (prova e Total do curso; função nativa).
+  Resposta esperada: 200 `{"usergrades": [...], "warnings": []}`.
+}

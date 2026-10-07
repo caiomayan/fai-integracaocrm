@@ -11,6 +11,8 @@
 Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 
 ## Guias
+- [Contrato da API (resumo para o CRM)](contrato-api-crm.md)
+- [OpenAPI](openapi.yaml)
 - [Integração para o CRM](integracao-crm.md)
 - [Desenvolvimento (ambiente local e testes)](desenvolvimento.md)
 

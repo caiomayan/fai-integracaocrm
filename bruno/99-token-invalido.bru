@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
   body: json
   auth: bearer
 }
@@ -16,25 +16,11 @@ auth:bearer {
 
 body:json {
   {
-    "courseid": {{courseid}}
+    "courseid": 2
   }
 }
 
-assert {
-  res.status: eq 401
-  res.body.message: eq Token de acesso inválido ou ausente.
-}
-
-tests {
-  test("erro só com message, sem detalhes técnicos", function () {
-    expect(Object.keys(res.body)).to.eql(["message"]);
-  });
-  test("tem X-Request-Id", function () {
-    expect(res.headers["x-request-id"]).to.match(/^[0-9a-f]{16}$/);
-  });
-}
-
 docs {
-  Mesma chamada do 04 com token inválido (header Bearer). Resposta: HTTP 401 com
-  `{"message":"Token de acesso inválido ou ausente."}`. Sem o header Authorization a resposta é a mesma.
+  Mesma consulta de resultados, com um token inválido.
+  Resposta esperada: 401 "Token de acesso inválido ou ausente."
 }

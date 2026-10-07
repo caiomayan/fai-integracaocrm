@@ -1,0 +1,24 @@
+meta {
+  name: 04c Provas em 07/10/2026
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "courseid": 2,
+    "dataprovade": "2026-10-07",
+    "dataprovaate": "2026-10-07"
+  }
+}
+
+docs {
+  Só candidatos que fizeram a prova em 07/10/2026 (dia exato: de = até).
+  Resposta esperada: 200 com `total` e `candidatos` só desse dia (pode ser `total: 0`).
+}

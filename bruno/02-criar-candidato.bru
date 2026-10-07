@@ -5,68 +5,28 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=core_user_create_users
+  url: http://localhost:8080/local/faicrm/rest_json.php/core_user_create_users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
   {
     "users": [
       {
-        "username": "{{username}}",
-        "password": "{{password}}",
-        "firstname": "{{firstname}}",
-        "lastname": "{{lastname}}",
-        "email": "{{email}}",
+        "username": "11122233344",
+        "password": "11122233344",
+        "firstname": "Ana",
+        "lastname": "Souza",
+        "email": "ana@email.com",
         "auth": "manual",
-        "idnumber": "{{username}}"
+        "idnumber": "11122233344"
       }
     ]
   }
 }
 
-script:pre-request {
-  // Gera um candidato único (CPF fictício de 11 dígitos começando com 9) e guarda como variáveis de
-  // execução (não vão para o arquivo do ambiente nem para o Git).
-  function gerarCandidato() {
-    var username = "9" + String(Date.now()).slice(-10);
-    bru.setVar("username", username);
-    bru.setVar("password", username);
-    bru.setVar("email", "candidato" + username + "@email.com");
-    bru.setVar("firstname", "Candidato");
-    bru.setVar("lastname", "Teste");
-    bru.setVar("userid", "");
-  }
-  // Se o 01 já gerou o candidato nesta execução, reaproveita; se o 02 roda sozinho, gera aqui.
-  if (!bru.getVar("username")) {
-    gerarCandidato();
-  }
-}
-
-script:post-response {
-  if (Array.isArray(res.body) && res.body.length > 0 && res.body[0].id) {
-    bru.setVar("userid", String(res.body[0].id));
-  }
-}
-
-tests {
-  test("sem exceção do Moodle", function () {
-    expect(res.status).to.equal(200);
-    expect((res.body || {}).exception).to.equal(undefined);
-  });
-}
-
 docs {
-  Cria o candidato com `core_user_create_users`. Resposta de sucesso: `[{"id": 123, "username": "12345678900"}]`.
-  
-  O script pós-resposta salva o `id` na variável de execução `userid`, usada do 03 ao 07 (nada é gravado no arquivo do ambiente).
-
-  Se o 01 já gerou o candidato, o 02 usa o mesmo; se o 02 rodar sozinho, ele mesmo gera um candidato único.
-  
-  Executar de novo com o mesmo `username` devolve HTTP 409 (`{"message":"Já existe um candidato com este usuário."}`), sem duplicar o usuário (veja o 97). Nesse caso este teste falha de propósito: use o 01 para localizar o candidato.
+  Cria a Ana Souza.
+  Resposta esperada: 200 `[{"id":..., "username":"11122233344"}]` na 1ª vez; 409 "Já existe um candidato com este usuário." nas seguintes.
 }

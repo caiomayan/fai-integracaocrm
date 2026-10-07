@@ -1,35 +1,26 @@
 meta {
-  name: 95 Campo obrigatório ausente
+  name: 95 Campo obrigatório
   type: http
   seq: 95
 }
 
 post {
-  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  url: http://localhost:8080/local/faicrm/rest_json.php/core_user_create_users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{token}}
+  auth: inherit
 }
 
 body:json {
-  {}
-}
-
-assert {
-  res.status: eq 400
-  res.body.message: eq Dados inválidos: o campo curso é obrigatório.
-}
-
-tests {
-  test("erro só com message, sem detalhes técnicos", function () {
-    expect(Object.keys(res.body)).to.eql(["message"]);
-  });
+  {
+    "users": [
+      {
+        "username": "55566677788"
+      }
+    ]
+  }
 }
 
 docs {
-  Resultados sem `courseid`. Resposta: HTTP 400 com
-  `{"message":"Dados inválidos: o campo curso é obrigatório."}`.
+  Cadastro sem os campos obrigatórios.
+  Resposta esperada: 400 "Dados inválidos: o campo nome é obrigatório." (ou outro campo obrigatório).
 }

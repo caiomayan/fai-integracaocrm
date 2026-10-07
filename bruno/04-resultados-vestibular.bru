@@ -17,8 +17,7 @@ auth:bearer {
 body:json {
   {
     "courseid": {{courseid}},
-    "pagina": 1,
-    "porpagina": 100
+    "pagina": 1
   }
 }
 
@@ -66,7 +65,7 @@ tests {
 docs {
   Função própria do plugin `local_faicrm` (somente leitura): candidatos (estudantes) do curso, **paginados**.
 
-  Parâmetros: `courseid` (obrigatório), `pagina` (>= 1, padrão 1) e `porpagina` (1 a 500, padrão 100). Ordem estável: sobrenome, nome, id.
+  Parâmetros: `courseid` (obrigatório), `pagina` (>= 1, padrão 1). O serviço devolve sempre 100 candidatos por página (`porpagina` não é um parâmetro; a resposta traz `porpagina: 100`). Ordem estável: sobrenome, nome, id.
 
   ```json
   {"total": 1234, "pagina": 1, "porpagina": 100, "totalpaginas": 13,

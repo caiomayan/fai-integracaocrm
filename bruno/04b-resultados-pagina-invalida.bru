@@ -17,7 +17,7 @@ auth:bearer {
 body:json {
   {
     "courseid": {{courseid}},
-    "porpagina": 1000
+    "pagina": 0
   }
 }
 
@@ -26,14 +26,13 @@ assert {
 }
 
 tests {
-  test("porpagina acima do limite devolve 400 com mensagem em português", function () {
+  test("pagina menor que 1 devolve 400 com mensagem em português", function () {
     expect(res.status).to.equal(400);
-    expect(res.body.message).to.equal("Dados inválidos: porpagina deve estar entre 1 e 500.");
+    expect(res.body.message).to.equal("Dados inválidos: pagina deve ser maior ou igual a 1.");
   });
 }
 
 docs {
-  `porpagina` só aceita de 1 a 500. Fora disso a resposta é HTTP 400 com
-  `{"message":"Dados inválidos: porpagina deve estar entre 1 e 500."}`.
-  O mesmo vale para `pagina` menor que 1 (`"Dados inválidos: pagina deve ser maior ou igual a 1."`).
+  `pagina` só aceita valores maiores ou iguais a 1. Com `pagina` 0 a resposta é HTTP 400 com
+  `{"message":"Dados inválidos: pagina deve ser maior ou igual a 1."}`.
 }

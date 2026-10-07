@@ -53,7 +53,7 @@ tests {
 
 docs {
   Localiza o candidato pelo `username` (CPF) com a função nativa `core_user_get_users_by_field`.
-
+  
   O script pré-requisição gera um candidato novo a cada execução do 01 (username de 11 dígitos começando com 9, senha igual ao username, e-mail `candidato<username>@email.com`), então o fluxo 01 a 07 roda do zero quantas vezes quiser e a resposta é sempre `[]`. Os valores ficam em variáveis de execução, que o 02 a 07 enxergam.
   
   - Resposta `[]`: não existe, execute o 02 (Criar candidato).

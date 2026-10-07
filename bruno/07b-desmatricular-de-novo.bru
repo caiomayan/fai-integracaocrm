@@ -1,0 +1,42 @@
+meta {
+  name: 07b Desmatricular de novo
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=enrol_manual_unenrol_users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enrolments": [
+      {
+        "userid": {{userid}},
+        "courseid": {{courseid}},
+        "roleid": {{roleid}}
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 404
+}
+
+tests {
+  test("desmatricular quem não está matriculado devolve 404 e mensagem em português", function () {
+    expect(res.status).to.equal(404);
+    expect(res.body.message).to.equal("O candidato não está matriculado neste curso.");
+  });
+}
+
+docs {
+  Repete a desmatrícula do 07. O candidato já não tem matrícula manual no curso, então a resposta é HTTP 404 `{"message":"O candidato não está matriculado neste curso."}` e nada é alterado. Com vários itens vale tudo ou nada.
+}

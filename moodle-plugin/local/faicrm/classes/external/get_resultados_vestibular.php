@@ -42,10 +42,8 @@ require_once($CFG->dirroot . '/grade/querylib.php');
  */
 class get_resultados_vestibular extends external_api {
 
-    /** Default page size. */
-    const DEFAULT_PER_PAGE = 100;
-    /** Maximum page size. */
-    const MAX_PER_PAGE = 500;
+    /** Fixed page size (RF-14): not a parameter. */
+    const PORPAGINA = 100;
 
     /**
      * Describes the parameters.
@@ -56,8 +54,6 @@ class get_resultados_vestibular extends external_api {
         return new external_function_parameters([
             'courseid' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED, null, NULL_NOT_ALLOWED),
             'pagina' => new external_value(PARAM_INT, 'Page number, starting at 1', VALUE_DEFAULT, 1, NULL_NOT_ALLOWED),
-            'porpagina' => new external_value(PARAM_INT, 'Results per page (1 to ' . self::MAX_PER_PAGE . ')',
-                VALUE_DEFAULT, self::DEFAULT_PER_PAGE, NULL_NOT_ALLOWED),
             'dataprovade' => new external_value(PARAM_RAW, 'Only candidates whose last finished attempt is at or after this ' .
                 'date (YYYY-MM-DD, server time zone; from 00:00:00)', VALUE_DEFAULT, '', NULL_NOT_ALLOWED),
             'dataprovaate' => new external_value(PARAM_RAW, 'Only candidates whose last finished attempt is at or before this ' .
@@ -105,28 +101,24 @@ class get_resultados_vestibular extends external_api {
      *
      * @param int $courseid Course id.
      * @param int $pagina Page number (>= 1).
-     * @param int $porpagina Results per page (1 to 500).
      * @param string $dataprovade Optional lower bound for the exam date.
      * @param string $dataprovaate Optional upper bound for the exam date.
      * @return array Page metadata and the list of results ordered by lastname, firstname, id.
      */
-    public static function execute(int $courseid, int $pagina = 1, int $porpagina = self::DEFAULT_PER_PAGE,
+    public static function execute(int $courseid, int $pagina = 1,
             string $dataprovade = '', string $dataprovaate = ''): array {
         global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'courseid' => $courseid, 'pagina' => $pagina, 'porpagina' => $porpagina,
+            'courseid' => $courseid, 'pagina' => $pagina,
             'dataprovade' => $dataprovade, 'dataprovaate' => $dataprovaate,
         ]);
         $courseid = $params['courseid'];
         $pagina = $params['pagina'];
-        $porpagina = $params['porpagina'];
+        $porpagina = self::PORPAGINA;
 
         if ($pagina < 1) {
             throw new invalid_parameter_exception('pagina must be greater than or equal to 1');
-        }
-        if ($porpagina < 1 || $porpagina > self::MAX_PER_PAGE) {
-            throw new invalid_parameter_exception('porpagina must be between 1 and ' . self::MAX_PER_PAGE);
         }
         $from = trim($params['dataprovade']) === '' ? null : self::parse_date($params['dataprovade'], 'dataprovade', false);
         $to = trim($params['dataprovaate']) === '' ? null : self::parse_date($params['dataprovaate'], 'dataprovaate', true);
@@ -248,7 +240,7 @@ class get_resultados_vestibular extends external_api {
         return new external_single_structure([
             'total' => new external_value(PARAM_INT, 'Total of students in the course (after the date filter)'),
             'pagina' => new external_value(PARAM_INT, 'Current page'),
-            'porpagina' => new external_value(PARAM_INT, 'Results per page'),
+            'porpagina' => new external_value(PARAM_INT, 'Results per page (fixed)'),
             'totalpaginas' => new external_value(PARAM_INT, 'Total of pages (0 when there are no students)'),
             'candidatos' => new external_multiple_structure(
                 new external_single_structure([

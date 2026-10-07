@@ -1,0 +1,38 @@
+meta {
+  name: 04g Resultados com porpagina (não aceito)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "porpagina": 50
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("porpagina não é aceito e devolve 400 com mensagem em português", function () {
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal("Dados inválidos: porpagina não é aceito; o serviço usa 100 por página.");
+  });
+}
+
+docs {
+  O tamanho da página é fixo em 100 candidatos; `porpagina` não é um parâmetro. Enviá-lo devolve HTTP 400 com
+  `{"message":"Dados inválidos: porpagina não é aceito; o serviço usa 100 por página."}`. O CRM escolhe só a `pagina`.
+}

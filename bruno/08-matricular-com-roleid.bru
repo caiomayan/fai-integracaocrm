@@ -1,7 +1,7 @@
 meta {
-  name: 03b Matricular com roleid
+  name: 08 Matricular com roleid
   type: http
-  seq: 4
+  seq: 17
 }
 
 post {
@@ -34,7 +34,7 @@ tests {
 }
 
 docs {
-  Igual ao 03, mas envia `roleid` explicitamente (`{{roleid}}`, 5 = Estudante). O papel enviado é respeitado; o `ws_crm` só pode atribuir Estudante (outro papel devolve HTTP 403 `{"message":"Não é permitido matricular com este papel."}`).
-  
+  Roda **depois** do 07 (o candidato já foi desmatriculado) e matricula de novo, agora enviando `roleid` explicitamente (`{{roleid}}`, 5 = Estudante). O papel enviado é respeitado. Quem já está matriculado recebe 409 (veja o 03d).
+
   Sucesso: HTTP 204, sem corpo.
 }

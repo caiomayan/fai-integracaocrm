@@ -61,6 +61,8 @@ final class local_faicrm_rest_json {
         'lang' => 'idioma',
         'theme' => 'tema',
         'courseid' => 'curso',
+        'courseids' => 'cursos',
+        'quizid' => 'prova',
         'pagina' => 'pagina',
         'porpagina' => 'porpagina',
         'dataprovade' => 'dataprovade',
@@ -248,6 +250,10 @@ final class local_faicrm_rest_json {
         }
 
         switch ($code) {
+            case 'alreadyenrolled':
+                return [409, 'O candidato já está matriculado neste curso.'];
+            case 'notenrolled':
+                return [404, 'O candidato não está matriculado neste curso.'];
             case 'accessexception':
             case 'nopermissions':
             case 'requireloginerror':
@@ -345,9 +351,6 @@ final class local_faicrm_rest_json {
         if ($debug === 'dataprovade after dataprovaate') {
             return [400, 'Dados inválidos: dataprovade não pode ser posterior a dataprovaate.'];
         }
-        if (strpos($debug, 'porpagina must be') === 0) {
-            return [400, 'Dados inválidos: porpagina deve estar entre 1 e 500.'];
-        }
         // external_api::validate_context() com contexto inexistente (ex.: matrícula em curso que não existe).
         if (strpos($debug, 'Context does not exist') === 0) {
             return [404, 'Curso não encontrado.'];
@@ -365,6 +368,10 @@ final class local_faicrm_rest_json {
         }
         if (preg_match('/^Missing required key in single structure: ([A-Za-z0-9_]+)/', $rest, $m)) {
             return [400, 'Dados inválidos: o campo ' . self::label($m[1]) . ' é obrigatório.'];
+        }
+        if (strpos($rest, 'Unexpected keys') === 0 && self::$wsfunction === 'local_faicrm_get_resultados_vestibular'
+                && preg_match('/\\bporpagina\\b/', $rest)) {
+            return [400, 'Dados inválidos: porpagina não é aceito; o serviço usa 100 por página.'];
         }
         if (strpos($rest, 'Unexpected keys') === 0) {
             return [400, 'Dados inválidos: há campos não reconhecidos' .
@@ -421,11 +428,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     local_faicrm_rest_json::fail(405, 'Método não permitido. Use POST.', 'methodnotallowed');
 }
 
-$wsfunction = $_GET['wsfunction'] ?? '';
-if (!is_string($wsfunction) || $wsfunction === '') {
+// A operação pode vir na query (?wsfunction=) e/ou no caminho (/rest_json.php/<função>).
+$fromquery = $_GET['wsfunction'] ?? '';
+$frompath = '';
+$pathinfo = (string) ($_SERVER['PATH_INFO'] ?? '');
+if ($pathinfo !== '' && $pathinfo !== '/') {
+    // Nomes de função do Moodle: minúsculas, dígitos e _. Evita lixo no log e na consulta.
+    if (!preg_match('#^/([a-z][a-z0-9_]{0,199})$#', $pathinfo, $m)) {
+        local_faicrm_rest_json::fail(400, 'Operação inválida: verifique o caminho da requisição.', 'invalidwsfunction');
+    }
+    $frompath = $m[1];
+}
+if (!is_string($fromquery)) {
+    local_faicrm_rest_json::fail(400, 'Operação inválida: verifique o parâmetro wsfunction.', 'invalidwsfunction');
+}
+if ($fromquery !== '' && $frompath !== '' && $fromquery !== $frompath) {
+    local_faicrm_rest_json::fail(400, 'Operação inválida: informe wsfunction só no caminho ou só na query.', 'conflictingwsfunction');
+}
+$wsfunction = $frompath !== '' ? $frompath : $fromquery;
+if ($wsfunction === '') {
     local_faicrm_rest_json::fail(400, 'Informe a operação desejada (parâmetro wsfunction).', 'missingwsfunction');
 }
-// Nomes de função do Moodle: minúsculas, dígitos e _. Evita lixo no log e na consulta.
 if (!preg_match('/^[a-z][a-z0-9_]{0,199}$/', $wsfunction)) {
     local_faicrm_rest_json::fail(400, 'Operação inválida: verifique o parâmetro wsfunction.', 'invalidwsfunction');
 }
@@ -495,6 +518,22 @@ require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/webservice/rest/locallib.php');
 
 /**
+ * Conflito de estado da matrícula (RF-13), traduzido pelo local_faicrm_rest_json::map().
+ */
+class local_faicrm_rest_json_conflict extends Exception {
+    /** @var string código interno (alreadyenrolled | notenrolled) */
+    public $errorcode;
+
+    /**
+     * @param string $errorcode código interno
+     */
+    public function __construct(string $errorcode) {
+        parent::__construct($errorcode);
+        $this->errorcode = $errorcode;
+    }
+}
+
+/**
  * Servidor REST nativo com erros no formato do RF-10.
  *
  * Só troca a forma de enviar o erro (send_error) e marca a fase de autenticação;
@@ -511,6 +550,51 @@ class local_faicrm_rest_json_server extends webservice_rest_server {
         $this->authenticating = true;
         parent::authenticate_user();
         $this->authenticating = false;
+    }
+
+    /**
+     * Checa o estado das matrículas (RF-13) depois da autenticação e antes da função nativa.
+     *
+     * Tudo ou nada: com um item em conflito nada é executado. Entrada malformada, curso ou usuário
+     * inexistente seguem para a validação e os erros nativos (400/404 de curso e candidato).
+     */
+    protected function execute() {
+        $enrol = $this->functionname === 'enrol_manual_enrol_users';
+        $unenrol = $this->functionname === 'enrol_manual_unenrol_users';
+        if (($enrol || $unenrol) && is_array($this->parameters['enrolments'] ?? null)) {
+            global $DB;
+            foreach ($this->parameters['enrolments'] as $item) {
+                if (!is_array($item) || !isset($item['userid'], $item['courseid'])
+                        || !is_numeric($item['userid']) || !is_numeric($item['courseid'])) {
+                    continue;
+                }
+                $userid = (int) $item['userid'];
+                $courseid = (int) $item['courseid'];
+                if (!$DB->record_exists('course', ['id' => $courseid])
+                        || !$DB->record_exists('user', ['id' => $userid, 'deleted' => 0])) {
+                    continue;
+                }
+                if ($enrol) {
+                    // Só matrícula manual ATIVA bloqueia: suspensa é reativada pela função nativa e
+                    // matrícula por outro método não impede a manual.
+                    $already = $DB->record_exists_sql(
+                        'SELECT 1 FROM {user_enrolments} ue JOIN {enrol} e ON e.id = ue.enrolid
+                          WHERE e.courseid = ? AND e.enrol = ? AND ue.userid = ? AND ue.status = ?',
+                        [$courseid, 'manual', $userid, ENROL_USER_ACTIVE]);
+                    if ($already) {
+                        throw new local_faicrm_rest_json_conflict('alreadyenrolled');
+                    }
+                } else {
+                    $manual = $DB->record_exists_sql(
+                        'SELECT 1 FROM {user_enrolments} ue JOIN {enrol} e ON e.id = ue.enrolid
+                          WHERE e.courseid = ? AND e.enrol = ? AND ue.userid = ?', [$courseid, 'manual', $userid]);
+                    if (!$manual) {
+                        throw new local_faicrm_rest_json_conflict('notenrolled');
+                    }
+                }
+            }
+        }
+        parent::execute();
     }
 
     /**

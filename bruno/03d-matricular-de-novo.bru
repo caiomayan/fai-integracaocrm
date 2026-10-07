@@ -1,0 +1,41 @@
+meta {
+  name: 03d Matricular de novo
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=enrol_manual_enrol_users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enrolments": [
+      {
+        "userid": {{userid}},
+        "courseid": {{courseid}}
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+tests {
+  test("matricular quem já está matriculado devolve 409 e mensagem em português", function () {
+    expect(res.status).to.equal(409);
+    expect(res.body.message).to.equal("O candidato já está matriculado neste curso.");
+  });
+}
+
+docs {
+  Repete a matrícula do 03 para o mesmo candidato. O candidato já tem matrícula no curso (por qualquer método), então a resposta é HTTP 409 `{"message":"O candidato já está matriculado neste curso."}` e nada é alterado. Com vários itens na mesma chamada vale tudo ou nada: se um deles conflitar, nenhum é matriculado.
+}

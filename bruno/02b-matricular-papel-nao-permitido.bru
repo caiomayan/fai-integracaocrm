@@ -1,7 +1,7 @@
 meta {
-  name: 03c Matricular com papel não permitido
+  name: 02b Matricular com papel não permitido
   type: http
-  seq: 5
+  seq: 3
 }
 
 post {
@@ -38,5 +38,5 @@ tests {
 }
 
 docs {
-  Tenta matricular com `roleid` 3 (professor). O usuário técnico só pode atribuir o papel Estudante, então a resposta é HTTP 403 com `{"message":"Não é permitido matricular com este papel."}` e a matrícula não é feita.
+  Roda **antes** do 03, com o candidato ainda sem matrícula (quem já está matriculado recebe 409, e a checagem de matrícula vem antes da checagem de papel). Tenta matricular com `roleid` 3 (professor). O usuário técnico só pode atribuir o papel Estudante, então a resposta é HTTP 403 com `{"message":"Não é permitido matricular com este papel."}` e a matrícula não é feita.
 }

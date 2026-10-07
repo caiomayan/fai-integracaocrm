@@ -1,0 +1,1086 @@
+openapi: 3.0.3
+info:
+  title: API de integração CRM ↔ Moodle (Vestibular FAI)
+  version: 1.6.0
+  description: |
+    API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
+    Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
+    servidor REST nativo do Moodle (autenticação, permissões e validação são as nativas).
+
+    **Autenticação.** Todas as chamadas levam o token do usuário técnico no header `Authorization: Bearer <token>`.
+    O token fica só no backend do CRM; nunca o envie ao navegador do candidato.
+
+    **Formato.** Toda requisição é `POST` com corpo JSON (objeto; `{}` quando a operação não tem parâmetros).
+    A operação vai no caminho (`/local/faicrm/rest_json.php/<função>`). Também vale a forma antiga
+    `/local/faicrm/rest_json.php?wsfunction=<função>`; se as duas aparecerem, têm de ser iguais, senão a resposta é 400.
+
+    **Erros.** Todo erro responde com o status HTTP adequado e corpo `{"message": "..."}` em português, pronto para
+    exibir na tela. O detalhe técnico fica no log do servidor, localizável pelo header `X-Request-Id` da resposta.
+    Sucesso sem dados (matricular e desmatricular) responde `204` sem corpo.
+  contact:
+    name: Equipe de integração FAI
+servers:
+  - url: http://localhost:8080
+    description: Ambiente local (Docker)
+tags:
+  - name: Candidatos
+    description: Localizar e cadastrar candidatos.
+  - name: Matrículas
+    description: Matricular e desmatricular candidatos no curso.
+  - name: Resultados
+    description: Nota, conclusão e datas dos candidatos do curso, com paginação e filtro por data da prova.
+  - name: Consultas auxiliares
+    description: Funções nativas do Moodle liberadas no serviço, para conferência. As respostas são as nativas (resumidas nos exemplos).
+security:
+  - bearerAuth: []
+paths:
+  /local/faicrm/rest_json.php/core_user_get_users_by_field:
+    post:
+      tags: [Candidatos]
+      operationId: localizarCandidato
+      summary: Localizar candidato
+      description: |
+        Procura candidatos por um campo (`username`, `email`, `id` ou `idnumber`). Lista vazia (`[]`) quando não existe.
+        Função nativa `core_user_get_users_by_field`. O CRM deve localizar antes de criar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [field, values]
+              properties:
+                field:
+                  type: string
+                  enum: [id, idnumber, username, email]
+                  description: Campo da busca.
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: Valores procurados.
+            example:
+              field: username
+              values: ["12345678900"]
+      responses:
+        '200':
+          description: Candidatos encontrados (ou lista vazia).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsuarioMoodle'
+              examples:
+                encontrado:
+                  summary: Candidato encontrado (campos omitidos)
+                  value:
+                    - id: 14
+                      username: "55500000011"
+                      firstname: T
+                      lastname: a1
+                      fullname: T a1
+                      auth: manual
+                      suspended: false
+                      confirmed: true
+                      lang: pt_br
+                inexistente:
+                  summary: Candidato inexistente
+                  value: []
+        '400':
+          description: Corpo ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                semCampo:
+                  summary: Sem `field`
+                  value:
+                    message: "Dados inválidos: o campo campo de busca é obrigatório."
+                semValores:
+                  summary: Sem `values`
+                  value:
+                    message: "Dados inválidos: o campo valores é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/core_user_create_users:
+    post:
+      tags: [Candidatos]
+      operationId: criarCandidato
+      summary: Criar candidato
+      description: |
+        Cria candidatos (função nativa `core_user_create_users`). Guarde o `id` devolvido.
+        `username` e `email` precisam ser únicos: repetir um deles devolve 409 e nada é criado.
+        A senha precisa atender à política de senhas do Moodle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [users]
+              properties:
+                users:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/NovoCandidato'
+            example:
+              users:
+                - username: "12345678900"
+                  password: "Senha@12345"
+                  firstname: Maria
+                  lastname: da Silva
+                  email: maria@email.com
+                  auth: manual
+                  idnumber: "12345678900"
+      responses:
+        '200':
+          description: Candidatos criados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: Id do candidato no Moodle.
+                    username:
+                      type: string
+              example:
+                - id: 55
+                  username: "12345678900"
+        '400':
+          description: Dados inválidos (campo obrigatório ausente, e-mail inválido, senha fora da política etc.).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                campoObrigatorio:
+                  summary: Campo obrigatório ausente
+                  value:
+                    message: "Dados inválidos: o campo nome é obrigatório."
+                jsonInvalido:
+                  summary: Corpo que não é um objeto JSON
+                  value:
+                    message: "O corpo da requisição deve ser um objeto JSON válido."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: Já existe candidato com o mesmo usuário ou e-mail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                usuarioDuplicado:
+                  summary: Usuário repetido
+                  value:
+                    message: "Já existe um candidato com este usuário."
+                emailDuplicado:
+                  summary: E-mail repetido
+                  value:
+                    message: "Já existe um candidato com este e-mail."
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/enrol_manual_enrol_users:
+    post:
+      tags: [Matrículas]
+      operationId: matricularCandidato
+      summary: Matricular candidato
+      description: |
+        Matricula candidatos no curso (função nativa `enrol_manual_enrol_users`).
+
+        - O `roleid` é **opcional**: sem ele, vale o papel Estudante (`student`), localizado pelo shortname.
+          O usuário técnico só pode atribuir o papel Estudante; outro `roleid` devolve 403.
+        - Quem **já tem matrícula manual ativa** no curso devolve 409. Matrícula manual **suspensa** é reativada (204);
+          matrícula por **outro método** (autoinscrição etc.) não bloqueia: a matrícula manual é criada (204).
+        - Com vários itens vale **tudo ou nada**: se um item falhar, nenhum é matriculado.
+        - Sucesso: `204`, sem corpo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrolments]
+              properties:
+                enrolments:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [userid, courseid]
+                    properties:
+                      roleid:
+                        type: integer
+                        description: Papel da matrícula. Padrão Estudante.
+                      userid:
+                        type: integer
+                        description: Id do candidato.
+                      courseid:
+                        type: integer
+                        description: Id do curso.
+            examples:
+              semRoleid:
+                summary: Sem roleid (padrão Estudante)
+                value:
+                  enrolments:
+                    - userid: 55
+                      courseid: 2
+              comRoleid:
+                summary: Com roleid
+                value:
+                  enrolments:
+                    - roleid: 5
+                      userid: 55
+                      courseid: 2
+      responses:
+        '204':
+          description: Matriculado. Sem corpo.
+        '400':
+          description: Dados inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: verifique o campo candidato."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          description: Papel não permitido (o usuário técnico só atribui Estudante) ou sem permissão.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                papelNaoPermitido:
+                  summary: roleid diferente de Estudante
+                  value:
+                    message: "Não é permitido matricular com este papel."
+                semPermissao:
+                  summary: Sem permissão
+                  value:
+                    message: "Operação não permitida para esta integração."
+        '404':
+          description: Curso ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                curso:
+                  summary: Curso inexistente
+                  value:
+                    message: "Curso não encontrado."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: O candidato já tem matrícula manual ativa no curso. Nada é alterado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "O candidato já está matriculado neste curso."
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/enrol_manual_unenrol_users:
+    post:
+      tags: [Matrículas]
+      operationId: desmatricularCandidato
+      summary: Desmatricular candidato
+      description: |
+        Remove a matrícula **manual** do candidato no curso (função nativa `enrol_manual_unenrol_users`).
+        Quem não tem matrícula manual no curso devolve 404. Com vários itens vale **tudo ou nada**.
+        Sucesso: `204`, sem corpo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrolments]
+              properties:
+                enrolments:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [userid, courseid]
+                    properties:
+                      userid:
+                        type: integer
+                        description: Id do candidato.
+                      courseid:
+                        type: integer
+                        description: Id do curso.
+                      roleid:
+                        type: integer
+                        description: Opcional. Papel a remover; sem ele, todos os papéis da matrícula manual.
+            example:
+              enrolments:
+                - userid: 55
+                  courseid: 2
+      responses:
+        '204':
+          description: Desmatriculado. Sem corpo.
+        '400':
+          description: Dados inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: verifique o campo candidato."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Candidato sem matrícula manual no curso, ou curso/candidato inexistente. Nada é alterado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                semMatricula:
+                  summary: Candidato não matriculado
+                  value:
+                    message: "O candidato não está matriculado neste curso."
+                curso:
+                  summary: Curso inexistente
+                  value:
+                    message: "Curso não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular:
+    post:
+      tags: [Resultados]
+      operationId: consultarResultados
+      summary: Resultados do vestibular
+      description: |
+        Candidatos (estudantes) do curso com **nota**, **conclusão** e **datas**, sempre **100 por página**, em ordem estável
+        (sobrenome, nome, id). Função própria do plugin `local_faicrm`, somente leitura.
+
+        - `pagina` começa em 1. Página além da última devolve `candidatos: []` com os metadados corretos.
+          Para ler tudo, repita de `pagina` 1 até `totalpaginas`.
+        - O tamanho da página é fixo; enviar `porpagina` devolve 400.
+        - **Datas.** `datamatricula`, `dataprova` e `dataconclusao` vêm em ISO 8601 com fuso, ou `null`.
+          `dataprova` é o fim da **última tentativa finalizada** do questionário.
+        - **Filtro por data da prova.** `dataprovade` e `dataprovaate` aceitam só `AAAA-MM-DD` (fuso America/Sao_Paulo):
+          o "de" vale a partir de 00:00:00 e o "até" até 23:59:59 do dia. Com filtro, quem não fez a prova fica de fora,
+          e `total` e `totalpaginas` respeitam o filtro. Um dia exato: os dois iguais.
+        - Curso sem candidatos: `total: 0`, `totalpaginas: 0`, `candidatos: []`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseid]
+              properties:
+                courseid:
+                  type: integer
+                  description: Id do curso.
+                pagina:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                  description: Número da página.
+                dataprovade:
+                  type: string
+                  format: date
+                  description: Só candidatos com prova a partir deste dia (00:00:00). Vazio = sem limite.
+                dataprovaate:
+                  type: string
+                  format: date
+                  description: Só candidatos com prova até este dia (23:59:59). Vazio = sem limite.
+            examples:
+              primeiraPagina:
+                summary: Primeira página
+                value:
+                  courseid: 2
+              provasDeUmDia:
+                summary: Provas de um dia
+                value:
+                  courseid: 2
+                  dataprovade: "2026-10-07"
+                  dataprovaate: "2026-10-07"
+              segundaPagina:
+                summary: Segunda página
+                value:
+                  courseid: 2
+                  pagina: 2
+      responses:
+        '200':
+          description: Página de resultados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoPaginado'
+              examples:
+                comProva:
+                  summary: Candidato que ainda não fez a prova e candidato que concluiu
+                  value:
+                    total: 2
+                    pagina: 1
+                    porpagina: 100
+                    totalpaginas: 1
+                    candidatos:
+                      - username: "55500000011"
+                        firstname: T
+                        lastname: a1
+                        email: a1@email.com
+                        courseid: 2
+                        nota: null
+                        concluido: false
+                        datamatricula: "2026-10-06T11:38:01-03:00"
+                        dataprova: null
+                        dataconclusao: null
+                      - username: "91791379514"
+                        firstname: João
+                        lastname: Demonstração
+                        email: portal91791379514@email.com
+                        courseid: 2
+                        nota: 800
+                        concluido: true
+                        datamatricula: "2026-10-07T10:25:18-03:00"
+                        dataprova: "2026-10-07T10:32:10-03:00"
+                        dataconclusao: "2026-10-07T10:32:10-03:00"
+                semProvas:
+                  summary: Filtro por data sem provas
+                  value:
+                    total: 0
+                    pagina: 1
+                    porpagina: 100
+                    totalpaginas: 0
+                    candidatos: []
+        '400':
+          description: Parâmetro inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                paginaInvalida:
+                  summary: pagina menor que 1
+                  value:
+                    message: "Dados inválidos: pagina deve ser maior ou igual a 1."
+                porpaginaNaoAceito:
+                  summary: porpagina enviado
+                  value:
+                    message: "Dados inválidos: porpagina não é aceito; o serviço usa 100 por página."
+                dataInvalida:
+                  summary: Data fora do formato
+                  value:
+                    message: "Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD."
+                intervaloInvertido:
+                  summary: dataprovade posterior a dataprovaate
+                  value:
+                    message: "Dados inválidos: dataprovade não pode ser posterior a dataprovaate."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Curso inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Curso não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/core_completion_get_course_completion_status:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: statusConclusaoCurso
+      summary: Conclusão do curso de um candidato
+      description: Função nativa `core_completion_get_course_completion_status`. Um candidato por chamada; confere o campo `concluido` dos resultados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseid, userid]
+              properties:
+                courseid:
+                  type: integer
+                userid:
+                  type: integer
+            example:
+              courseid: 2
+              userid: 53
+      responses:
+        '200':
+          description: Estado de conclusão (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaNativa'
+              example:
+                completionstatus:
+                  completed: true
+                  aggregation: 1
+                  completions:
+                    - type: 4
+                      title: Conclusão de atividade
+                      status: "Sim"
+                      complete: true
+                      timecompleted: 1791379930
+                warnings: []
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo curso é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Curso ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                curso:
+                  summary: Curso inexistente
+                  value:
+                    message: "Curso não encontrado."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/gradereport_user_get_grade_items:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: notasCandidato
+      summary: Notas de um candidato
+      description: Função nativa `gradereport_user_get_grade_items`. Itens de nota do curso (prova e Total do curso). O `userid` é opcional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseid]
+              properties:
+                courseid:
+                  type: integer
+                userid:
+                  type: integer
+            example:
+              courseid: 2
+              userid: 53
+      responses:
+        '200':
+          description: Itens de nota (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaNativa'
+              example:
+                usergrades:
+                  - courseid: 2
+                    userid: 53
+                    userfullname: João Demonstração
+                    gradeitems:
+                      - id: 2
+                        itemname: Prova Vestibular 2027.1
+                        itemtype: mod
+                        itemmodule: quiz
+                        graderaw: 800
+                      - id: 1
+                        itemname: null
+                        itemtype: course
+                        graderaw: 800
+                warnings: []
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo curso é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Curso ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                curso:
+                  summary: Curso inexistente
+                  value:
+                    message: "Curso não encontrado."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/core_course_get_courses_by_field:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: consultarCurso
+      summary: Consultar curso
+      description: |
+        Função nativa `core_course_get_courses_by_field`. Útil para descobrir o `courseid` pelo shortname (`VEST20271`).
+        `field` e `value` são opcionais: sem filtro (ou só com `value`) devolve **todos** os cursos visíveis, inclusive o do site.
+        Filtro sem resultado (por exemplo, curso inexistente) responde `200` com `courses: []`, nunca 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                field:
+                  type: string
+                  enum: [id, ids, shortname, idnumber, category]
+                value:
+                  type: string
+            example:
+              field: shortname
+              value: VEST20271
+      responses:
+        '200':
+          description: Cursos encontrados (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaNativa'
+              examples:
+                encontrado:
+                  summary: Curso encontrado (campos omitidos)
+                  value:
+                    courses:
+                      - id: 2
+                        fullname: Vestibular 2027.1
+                        shortname: VEST20271
+                        categoryid: 1
+                    warnings: []
+                semResultado:
+                  summary: Curso inexistente
+                  value:
+                    courses: []
+                    warnings: []
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/mod_quiz_get_quizzes_by_courses:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: consultarProva
+      summary: Consultar a prova (questionário) do curso
+      description: Função nativa `mod_quiz_get_quizzes_by_courses`. Devolve o `id` do questionário, usado em `mod_quiz_get_user_attempts`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courseids:
+                  type: array
+                  items:
+                    type: integer
+            example:
+              courseids: [2]
+      responses:
+        '200':
+          description: Questionários dos cursos (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaNativa'
+              examples:
+                encontrado:
+                  summary: Questionário encontrado (campos omitidos)
+                  value:
+                    quizzes:
+                      - id: 1
+                        coursemodule: 2
+                        course: 2
+                        name: Prova Vestibular 2027.1
+                    warnings: []
+                cursoSemAcesso:
+                  summary: Curso inexistente ou sem acesso (nunca 404)
+                  value:
+                    quizzes: []
+                    warnings:
+                      - item: course
+                        itemid: 9999
+                        warningcode: "1"
+                        message: No access rights in course context
+        '400':
+          description: Parâmetro inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: verifique o campo cursos."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/mod_quiz_get_user_attempts:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: tentativasCandidato
+      summary: Tentativas de um candidato na prova
+      description: Função nativa `mod_quiz_get_user_attempts`. `timefinish` é a base da `dataprova` dos resultados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quizid]
+              properties:
+                quizid:
+                  type: integer
+                userid:
+                  type: integer
+                status:
+                  type: string
+                  enum: [finished, unfinished, all]
+                includepreviews:
+                  type: boolean
+            example:
+              quizid: 1
+              userid: 53
+              status: all
+      responses:
+        '200':
+          description: Tentativas (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaNativa'
+              example:
+                attempts:
+                  - id: 26
+                    quiz: 1
+                    userid: 53
+                    attempt: 1
+                    state: finished
+                    timestart: 1791379873
+                    timefinish: 1791379930
+                    sumgrades: 4
+                warnings: []
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo prova é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Prova ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                prova:
+                  summary: Prova inexistente
+                  value:
+                    message: "Prova não encontrada."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/core_enrol_get_enrolled_users:
+    post:
+      tags: [Consultas auxiliares]
+      operationId: matriculadosNoCurso
+      summary: Matriculados no curso
+      description: Função nativa `core_enrol_get_enrolled_users`. Todos os matriculados (sem paginação); para listas grandes, prefira os resultados paginados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseid]
+              properties:
+                courseid:
+                  type: integer
+            example:
+              courseid: 2
+      responses:
+        '200':
+          description: Matriculados (resposta nativa do Moodle, resumida).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+              example:
+                - id: 14
+                  username: "55500000011"
+                  firstname: T
+                  lastname: a1
+                  fullname: T a1
+                  roles:
+                    - roleid: 5
+                      shortname: student
+                  enrolledcourses:
+                    - id: 2
+                      fullname: Vestibular 2027.1
+                      shortname: VEST20271
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo curso é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Curso inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Curso não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token permanente do usuário técnico do serviço "CRM Vestibular FAI". Fica só no backend do CRM.
+  schemas:
+    Erro:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Descrição em português, clara para o usuário final.
+      example:
+        message: "Já existe um candidato com este e-mail."
+    NovoCandidato:
+      type: object
+      required: [username, password, firstname, lastname, email]
+      properties:
+        username:
+          type: string
+          description: Único e em minúsculas (CPF só com dígitos funciona).
+        password:
+          type: string
+          description: Precisa atender à política de senhas do Moodle.
+        firstname:
+          type: string
+        lastname:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Único.
+        auth:
+          type: string
+          default: manual
+        idnumber:
+          type: string
+          description: Opcional; usamos o mesmo valor do username.
+    UsuarioMoodle:
+      type: object
+      description: Usuário como o Moodle devolve (campos omitidos nos exemplos).
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        fullname:
+          type: string
+        email:
+          type: string
+        auth:
+          type: string
+        suspended:
+          type: boolean
+        confirmed:
+          type: boolean
+      additionalProperties: true
+    Candidato:
+      type: object
+      required: [username, firstname, lastname, email, courseid, nota, concluido, datamatricula, dataprova, dataconclusao]
+      properties:
+        username:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        email:
+          type: string
+        courseid:
+          type: integer
+        nota:
+          type: number
+          nullable: true
+          description: Total do curso no gradebook, valor bruto; `null` se ainda sem nota.
+        concluido:
+          type: boolean
+          description: Conclusão do curso (depende do cron do Moodle, pode levar alguns minutos após a prova).
+        datamatricula:
+          type: string
+          format: date-time
+          nullable: true
+          description: Primeira matrícula do candidato no curso (ISO 8601 com fuso).
+        dataprova:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fim da última tentativa finalizada do questionário; `null` se ainda não fez a prova.
+        dataconclusao:
+          type: string
+          format: date-time
+          nullable: true
+          description: Quando o curso foi concluído; `null` se não concluiu.
+    ResultadoPaginado:
+      type: object
+      required: [total, pagina, porpagina, totalpaginas, candidatos]
+      properties:
+        total:
+          type: integer
+          description: Total de candidatos (já considerando o filtro de data).
+        pagina:
+          type: integer
+          description: Página devolvida.
+        porpagina:
+          type: integer
+          description: Candidatos por página (fixo em 100).
+          example: 100
+        totalpaginas:
+          type: integer
+          description: "`ceil(total / porpagina)`; 0 quando não há candidatos."
+        candidatos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Candidato'
+    RespostaNativa:
+      type: object
+      description: Resposta nativa do Moodle, sem alterações (resumida nos exemplos).
+      additionalProperties: true
+  responses:
+    NaoAutenticado:
+      description: Token ausente, inválido ou expirado.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Sempre `Bearer`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            message: "Token de acesso inválido ou ausente."
+    SemPermissao:
+      description: A integração não tem permissão para a operação.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            message: "Operação não permitida para esta integração."
+    MetodoNaoPermitido:
+      description: Método diferente de POST.
+      headers:
+        Allow:
+          schema:
+            type: string
+          description: Sempre `POST`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            message: "Método não permitido. Use POST."
+    CorpoGrande:
+      description: Corpo da requisição maior que 1 MB.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            message: "O corpo da requisição é grande demais (máximo de 1 MB)."

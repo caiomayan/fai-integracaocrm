@@ -27,18 +27,18 @@ Cadastro e matrícula usam funções nativas do Moodle. Só a consulta de result
 ## Endpoint (JSON)
 
 ```
-POST {baseUrl}/local/faicrm/rest_json.php?wsfunction=<função>
+POST {baseUrl}/local/faicrm/rest_json.php/<função>
 Content-Type: application/json
 Authorization: Bearer <token>
 ```
 
-Local: `baseUrl = http://localhost:8080`. A função vai na query string (`wsfunction`); o corpo é um objeto JSON com os parâmetros da função, **no mesmo formato dos exemplos do cliente**. Corpo vazio ou `{}` = sem parâmetros. A resposta é sempre JSON.
+Local: `baseUrl = http://localhost:8080`. A operação vai **no caminho** (`/local/faicrm/rest_json.php/core_user_create_users`); a forma antiga `?wsfunction=<função>` na query continua valendo. Se as duas vierem, têm de ser iguais (senão 400). O contrato completo, com exemplos, está em [`docs/openapi.yaml`](openapi.yaml) (OpenAPI 3.0). O corpo é um objeto JSON com os parâmetros da função, **no mesmo formato dos exemplos do cliente**. Corpo vazio ou `{}` = sem parâmetros. A resposta é sempre JSON.
 
-O adaptador (`local/faicrm/rest_json.php`) só converte o corpo e delega ao servidor REST nativo do Moodle: autenticação, permissões e validação são as nativas. As chaves `wstoken`, `wsfunction` e `moodlewsrestformat` no corpo são ignoradas (token só pelo header, função só pela query).
+O adaptador (`local/faicrm/rest_json.php`) só converte o corpo e delega ao servidor REST nativo do Moodle: autenticação, permissões e validação são as nativas. As chaves `wstoken`, `wsfunction` e `moodlewsrestformat` no corpo são ignoradas (token só pelo header, função só pelo caminho ou pela query).
 
 Exemplo (criar candidato):
 ```bash
-curl -X POST "http://localhost:8080/local/faicrm/rest_json.php?wsfunction=core_user_create_users" \
+curl -X POST "http://localhost:8080/local/faicrm/rest_json.php/core_user_create_users" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"users":[{"username":"12345678900","password":"Senha@123","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","auth":"manual","idnumber":"12345678900"}]}'
 ```
@@ -82,16 +82,17 @@ Com `roleid` explícito (5 = Estudante no Moodle padrão), ele é respeitado:
 ```
 O usuário técnico só pode atribuir o papel Estudante: outro `roleid` devolve **HTTP 403** (`Não é permitido matricular com este papel.`). Itens com e sem `roleid` podem ser misturados na mesma chamada.
 
+**Quem já está matriculado:** matricular um candidato que já tem **matrícula manual ativa** no curso devolve **HTTP 409** (`O candidato já está matriculado neste curso.`). Matrícula manual **suspensa** é reativada pela função nativa (204), e matrícula por **outro método** (autoinscrição etc.) não bloqueia: a manual é criada (204). Com vários itens vale **tudo ou nada**: se um conflitar, nenhum é matriculado. A checagem vem depois da autenticação e antes da validação do papel.
+
 Resposta de sucesso: **HTTP 204**, sem corpo.
 
 ### 4. Resultados — `local_faicrm_get_resultados_vestibular`
-Corpo: `{"courseid": 2, "pagina": 1, "porpagina": 100}` (mais os filtros de data da prova, opcionais). Devolve os candidatos (estudantes) do curso **paginados**, ordenados por sobrenome, nome e id (ordem estável).
+Corpo: `{"courseid": 2, "pagina": 1}` (mais os filtros de data da prova, opcionais). Devolve os candidatos (estudantes) do curso **paginados, 100 por página**, ordenados por sobrenome, nome e id (ordem estável).
 
 | parâmetro | obrigatório | padrão | regra |
 |---|---|---|---|
 | `courseid` | sim | | id do curso |
 | `pagina` | não | 1 | maior ou igual a 1 |
-| `porpagina` | não | 100 | de 1 a 500 |
 | `dataprovade` | não | | só candidatos com prova a partir deste dia (`AAAA-MM-DD`, 00:00:00) |
 | `dataprovaate` | não | | só candidatos com prova até este dia (`AAAA-MM-DD`, até 23:59:59) |
 
@@ -100,9 +101,9 @@ Corpo: `{"courseid": 2, "pagina": 1, "porpagina": 100}` (mais os filtros de data
  "candidatos": [{"username":"12345678900","firstname":"Maria","lastname":"da Silva","email":"maria@email.com","courseid":2,"nota":760,"concluido":true,
                   "datamatricula":"2026-10-06T11:00:36-03:00","dataprova":"2026-10-07T09:42:53-03:00","dataconclusao":"2026-10-07T09:42:53-03:00"}]}
 ```
-- `total`: candidatos do curso; `totalpaginas = ceil(total / porpagina)` (0 se não há candidatos).
+- `total`: candidatos do curso; `totalpaginas = ceil(total / 100)` (0 se não há candidatos). `porpagina` vem sempre `100` na resposta e **não é um parâmetro**: enviá-lo devolve HTTP 400 (`Dados inválidos: porpagina não é aceito; o serviço usa 100 por página.`).
 - Página além da última: `candidatos: []`, com os metadados corretos. Curso sem candidatos: `total: 0, totalpaginas: 0, candidatos: []`.
-- `pagina` ou `porpagina` fora da faixa: HTTP 400 com `{"message": "Dados inválidos: porpagina deve estar entre 1 e 500."}` (ou `pagina deve ser maior ou igual a 1`).
+- `pagina` menor que 1: HTTP 400 com `{"message": "Dados inválidos: pagina deve ser maior ou igual a 1."}`.
 - Logo após a matrícula: `"nota": null, "concluido": false`.
 
 **Filtro por data da prova.** `dataprova` é o horário em que a **última tentativa finalizada** do questionário terminou. Com `dataprovade` e/ou `dataprovaate`, só entram candidatos com `dataprova` dentro do intervalo (inclusive); quem ainda não fez a prova fica de fora, e `total` e `totalpaginas` já respeitam o filtro.
@@ -111,7 +112,7 @@ Corpo: `{"courseid": 2, "pagina": 1, "porpagina": 100}` (mais os filtros de data
 - Formato inválido (ex.: `07/10/2026`, `2026-02-30`, ou com hora como `2026-10-07T10:00`): HTTP 400, `{"message": "Dados inválidos: dataprovade deve estar no formato AAAA-MM-DD."}` (o mesmo para `dataprovaate`). `dataprovade` posterior a `dataprovaate`: HTTP 400, `{"message": "Dados inválidos: dataprovade não pode ser posterior a dataprovaate."}`.
 - Texto vazio (`""`) equivale a não filtrar.
 
-**Como percorrer todas as páginas:** comece em `pagina = 1` e repita até `pagina = totalpaginas` (ou até `candidatos` vir vazio), mantendo o mesmo `porpagina`. A ordem é estável, então cada candidato aparece uma única vez. Para sincronização frequente, use `porpagina` entre 100 e 500.
+**Como percorrer todas as páginas:** comece em `pagina = 1` e repita até `pagina = totalpaginas` (ou até `candidatos` vir vazio). A ordem é estável, então cada candidato aparece uma única vez.
 
 Campos de cada item de `candidatos`:
 
@@ -135,6 +136,8 @@ A conclusão depende do cron do Moodle; pode levar alguns minutos após a prova.
 ### 5. Desmatricular — `enrol_manual_unenrol_users`
 Corpo: `{"enrolments": [{"userid": 123, "courseid": 2}]}` (`roleid` opcional). Resposta de sucesso: **HTTP 204**, sem corpo.
 
+Desmatricular quem **não tem matrícula manual** no curso devolve **HTTP 404** (`O candidato não está matriculado neste curso.`). Também vale tudo ou nada.
+
 ### Funções nativas auxiliares
 `core_completion_get_course_completion_status` (`courseid`, `userid`) e `gradereport_user_get_grade_items` (`courseid`, `userid` opcional) permitem conferir conclusão e notas. Também estão no serviço: `core_course_get_courses_by_field`, `core_enrol_get_enrolled_users`, `mod_quiz_get_quizzes_by_courses`, `mod_quiz_get_user_attempts`.
 
@@ -151,7 +154,9 @@ Detalhes técnicos (exceção, código interno, SQL, caminhos) **não** vão na 
 | Situação | HTTP | message |
 |---|---|---|
 | Corpo não é um objeto JSON válido | 400 | O corpo da requisição deve ser um objeto JSON válido. |
-| Falta `?wsfunction=` | 400 | Informe a operação desejada (parâmetro wsfunction). |
+| Falta a operação (nem caminho nem `?wsfunction=`) | 400 | Informe a operação desejada (parâmetro wsfunction). |
+| Caminho da operação inválido | 400 | Operação inválida: verifique o caminho da requisição. |
+| Caminho e `?wsfunction=` diferentes | 400 | Operação inválida: informe wsfunction só no caminho ou só na query. |
 | `wsfunction` com caracteres inválidos | 400 | Operação inválida: verifique o parâmetro wsfunction. |
 | Campo obrigatório ausente | 400 | Dados inválidos: o campo `<campo>` é obrigatório. |
 | Campo com tipo/valor inválido | 400 | Dados inválidos: verifique o campo `<campo>`. |
@@ -164,10 +169,12 @@ Detalhes técnicos (exceção, código interno, SQL, caminhos) **não** vão na 
 | Função fora do serviço, sem permissão, usuário técnico bloqueado | 403 | Operação não permitida para esta integração. |
 | Matrícula com papel diferente de Estudante | 403 | Não é permitido matricular com este papel. |
 | Curso inexistente | 404 | Curso não encontrado. |
+| Desmatricular quem não tem matrícula manual | 404 | O candidato não está matriculado neste curso. |
 | Candidato (`userid`) inexistente ou excluído | 404 | Candidato não encontrado. |
 | Prova (`quizid`) inexistente | 404 | Prova não encontrada. |
 | `wsfunction` que não existe no Moodle | 404 | Operação não encontrada: verifique o parâmetro wsfunction. |
 | Método diferente de POST | 405 | Método não permitido. Use POST. |
+| Candidato com matrícula manual ativa no curso | 409 | O candidato já está matriculado neste curso. |
 | Username já existe | 409 | Já existe um candidato com este usuário. |
 | E-mail já existe | 409 | Já existe um candidato com este e-mail. |
 | Curso sem inscrição manual ativa | 409 | O curso não aceita matrícula manual no momento. |

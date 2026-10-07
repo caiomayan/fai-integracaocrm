@@ -1,0 +1,55 @@
+meta {
+  name: 04e Resultados: últimos 30 dias
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "courseid": {{courseid}},
+    "dataprovade": "{{dataprovade}}",
+    "dataprovaate": "{{dataprovaate}}"
+  }
+}
+
+script:pre-request {
+  // Últimos 30 dias em America/Sao_Paulo (UTC-3): de = hoje - 30 dias, até = hoje.
+  var agora = Date.now() - 3 * 60 * 60 * 1000;
+  bru.setVar("dataprovade", new Date(agora - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  bru.setVar("dataprovaate", new Date(agora).toISOString().slice(0, 10));
+}
+
+tests {
+  test("status 200 e objeto paginado", function () {
+    expect(res.status).to.equal(200);
+    ["total", "pagina", "porpagina", "totalpaginas", "candidatos"].forEach(function (k) {
+      expect(res.body).to.have.property(k);
+    });
+  });
+  test("só candidatos com prova dentro do intervalo", function () {
+    var de = new Date(bru.getVar("dataprovade") + "T00:00:00-03:00").getTime();
+    var ate = new Date(bru.getVar("dataprovaate") + "T23:59:59-03:00").getTime();
+    res.body.candidatos.forEach(function (c) {
+      expect(c.dataprova).to.not.equal(null);
+      var t = new Date(c.dataprova).getTime();
+      expect(t).to.be.at.least(de);
+      expect(t).to.be.at.most(ate);
+    });
+  });
+}
+
+docs {
+  Lista quem fez a prova nos **últimos 30 dias** (de hoje menos 30 dias até hoje, fuso America/Sao_Paulo). O script pré-requisição calcula as duas datas: nada para digitar.
+
+  Para aparecer alguém, o candidato precisa ter feito a prova nesse período (veja o 04c: `simular_prova.php` ou a prova no navegador).
+}

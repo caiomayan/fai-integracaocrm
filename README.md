@@ -19,11 +19,11 @@ CRM ──▶ cadastra o candidato ──▶ matricula no Vestibular ──▶ c
 ## Exemplo
 
 ```http
-POST /local/faicrm/rest_json.php?wsfunction=local_faicrm_get_resultados_vestibular
+POST /local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
 Authorization: Bearer <token>
 Content-Type: application/json
 
-{ "courseid": 10, "pagina": 1, "porpagina": 100 }
+{ "courseid": 10, "pagina": 1 }
 ```
 
 ```json
@@ -38,7 +38,9 @@ Content-Type: application/json
 }
 ```
 
-`pagina` (padrão 1) e `porpagina` (padrão 100, máximo 500) são opcionais. Para ler todos os candidatos, repita a chamada de `pagina` 1 até `totalpaginas`. As datas (`datamatricula`, `dataprova`, `dataconclusao`) vêm em ISO 8601 ou `null`. Para listar só quem fez a prova num período, envie `dataprovade` e/ou `dataprovaate` (somente data, `AAAA-MM-DD`).
+`pagina` (padrão 1) é opcional; cada página traz 100 candidatos. Para ler todos os candidatos, repita a chamada de `pagina` 1 até `totalpaginas`. As datas (`datamatricula`, `dataprova`, `dataconclusao`) vêm em ISO 8601 ou `null`. Para listar só quem fez a prova num período, envie `dataprovade` e/ou `dataprovaate` (somente data, `AAAA-MM-DD`).
+
+Matricular quem já está matriculado devolve 409, e desmatricular quem não está devolve 404. O contrato completo (todas as operações, exemplos e erros) está em [docs/openapi.yaml](docs/openapi.yaml).
 
 Os erros vêm prontos para exibir na tela, em português e com o status HTTP adequado:
 

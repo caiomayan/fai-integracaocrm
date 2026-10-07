@@ -23,6 +23,10 @@ Legenda: ⬜ a fazer · 🚧 em andamento · ✅ feito · Dono = agente respons�
 | T18 | Datas (datamatricula, dataprova, dataconclusao) + filtro dataprovade/dataprovaate (RF-12); 400 no adaptador; versão 1.5.0; Bruno, docs, README e nota de referência | RF-12, CA-17, CA-18, CA-19 | Ferro (Sonnet · medium) | ✅ |
 | T19 | QA de T18 com volume e datas variadas + regressão | CA-01…CA-19 | Lupa (Opus · medium) | ✅ APROVADO |
 | T20 | Filtro só por data (AAAA-MM-DD) + Bruno sem valores fixos (02 gera candidato único, userid encadeado, token como secret do ambiente, 03c para papel não permitido) | RF-12, CA-07, CA-18 | Ferro (Sonnet · medium) | ✅ |
+| T21 | RF-13 (409/404 em matrícula/desmatrícula repetidas), RF-14 (porpagina fixo 100), RF-15 (operação no caminho), versão 1.6.0; Bruno (datas prontas: hoje, 30 dias, sem provas, inválida; 409 e 404 repetidos); docs; RF-16 `docs/openapi.yaml` | RF-13…RF-16, CA-20…CA-23 | Ferro (Sonnet · medium) | ✅ |
+| T22 | QA de T21 + conferência do OpenAPI contra respostas reais + regressão | CA-01…CA-23 | Lupa (Opus · medium) | ✅ APROVADO |
+| T24 | RF-13 ajustado: 409 só com matrícula manual ATIVA (suspensa reativa; outro método não bloqueia) + linha no desenvolvimento.md sobre o token secreto na CLI | RF-13, CA-20 | Ferro (Sonnet · medium) | ✅ |
+| T23 | Página Swagger publicada a partir do openapi.yaml | RF-16 | maestro | ✅ https://claude.ai/artifact/QMuhHW612LCKuqTjApCth3 |
 | T7 | Verificação ponta a ponta (`down -v`, up, CA-01…CA-07) + navegador | todos os CA | orquestrador | ✅ |
 
 ## Resultado da verificação (T7 — 2026-10-06)
@@ -90,3 +94,12 @@ Ajustes do orquestrador: `$CFG->noemailever` no config dev (envio de quiz quebra
   1. `ate` com HH:MM vale HH:MM:00 (segue a spec).
   2. O subselect MAX(timefinish) deve ser acompanhado se o volume chegar a dezenas de milhares de tentativas.
   3. Bruno 04c/04d com `seq` repetido (cosmético).
+
+## Resultado do QA de RF-13…RF-16 (T22, Lupa) e ajustes (T24, Ferro), 2026-10-07: APROVADO
+- **CA-20:** matrícula repetida → 409; desmatrícula de quem não está matriculado → 404; tudo ou nada conferido no banco; sem token → 401. Corrida com 4 matrículas simultâneas → 1 matrícula só (aceitável).
+- **CA-21:** 100 por página fixo; com 150 candidatos → 2 páginas; `porpagina` → 400.
+- **CA-22:** caminho e query devolvem respostas idênticas byte a byte; formas divergentes → 400.
+- **CA-23:** lint válido; 63 pares (operação, status) conferidos contra a API real.
+- Correção do Ferro: exemplos do OpenAPI que a API não devolvia.
+- Decisão do Caio (T24): o 409 vale só com matrícula manual ATIVA. Matrícula suspensa é reativada (204); matrícula por outro método não bloqueia. Plugin 1.6.1.
+- T23: página de referência (estilo Swagger) publicada a partir do openapi.yaml.

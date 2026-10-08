@@ -252,6 +252,7 @@ final class handler {
                 return [404, 'O candidato não está matriculado neste curso.'];
             // Nova tentativa (spec 004): lançadas por local_faicrm_liberar/cancelar_nova_tentativa.
             case 'candidatonaomatriculado':
+            case 'usernotenroled':
                 return [409, 'O candidato não está matriculado neste curso.'];
             case 'tentativaemandamento':
                 return [409, 'O candidato tem uma tentativa em andamento.'];

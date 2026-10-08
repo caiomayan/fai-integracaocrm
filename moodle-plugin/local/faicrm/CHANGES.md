@@ -1,5 +1,8 @@
 # Histórico de versões — local_faicrm
 
+## 1.8.5 (2026100815)
+- Erro `usernotenroled` do Moodle (ex.: `core_completion_get_course_completion_status` para um candidato não matriculado) passa a responder **409** "O candidato não está matriculado neste curso.", em vez de 500 "Erro interno".
+
 ## 1.8.4 (2026100814)
 - A-01 (decisão final, spec 005): sai `moodle/site:viewuseridentity` do papel `integracaocrm` (volta a 20 capabilities). Ela expunha o e-mail (e os campos de "Mostrar identidade do usuário") de qualquer conta, inclusive da equipe. A busca por e-mail não é oferecida (responde `[]`); o CRM localiza pelo CPF (`username`/`idnumber`) ou pelo `id`. O `configurar.php` retira essa permissão de quem recebeu a 1.8.3 (rode-o depois do upgrade) e o `verificar.php` acusa FALHA se ela estiver no papel. Sai o aviso de `showuseridentity`.
 

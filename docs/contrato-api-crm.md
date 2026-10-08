@@ -27,13 +27,13 @@ A operação também pode ir na query: `.../rest_json.php?wsfunction={operação
 | Status | Quando |
 |---|---|
 | **200** | sucesso, com corpo JSON |
-| **204** | sucesso sem corpo (matricular e desmatricular) |
+| **204** | sucesso sem corpo (matricular, desmatricular e cancelar nova tentativa) |
 | 400 | dado inválido (campo faltando, formato errado, JSON inválido) |
 | 401 | token ausente ou inválido |
-| 403 | operação ou papel não permitido para a integração |
-| 404 | curso, candidato ou matrícula não encontrados |
+| 403 | operação ou papel não permitido para a integração, ou chamada de um IP não liberado |
+| 404 | curso, prova, candidato, matrícula ou nova tentativa não encontrados |
 | 405 | método diferente de POST |
-| 409 | conflito: candidato ou e-mail já existe, ou candidato já matriculado |
+| 409 | conflito: candidato ou e-mail já existe; candidato já matriculado (ou não matriculado, na recaptação); candidato ainda pode fazer a prova, tem tentativa em andamento ou já iniciou a nova tentativa |
 | 413 | corpo maior que 1 MB |
 | 500 / 503 | erro interno / serviço indisponível (tentar de novo depois) |
 

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.8.4
+  version: 1.8.5
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -953,6 +953,14 @@ paths:
                     message: "Candidato não encontrado."
         '405':
           $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: Candidato não matriculado no curso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "O candidato não está matriculado neste curso."
         '413':
           $ref: '#/components/responses/CorpoGrande'
   /local/faicrm/rest_json.php/gradereport_user_get_grade_items:

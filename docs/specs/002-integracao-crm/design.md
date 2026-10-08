@@ -72,7 +72,7 @@ Exemplo (JSON da resposta REST):
 ## Usuário técnico e papel
 - Usuário `ws_crm` (auth manual, senha aleatória, e-mail `ws_crm@localhost.local`).
 - Papel de sistema `integracaocrm` ("Integração CRM"), atribuído a `ws_crm` no contexto de sistema, com:
-  `webservice/rest:use, moodle/user:create, moodle/user:viewdetails, moodle/user:viewalldetails, moodle/user:viewhiddendetails, moodle/course:view, moodle/course:viewhiddencourses, moodle/course:viewparticipants, moodle/course:enrolreview, enrol/manual:enrol, enrol/manual:unenrol, moodle/role:assign, moodle/grade:viewall, gradereport/user:view, moodle/course:viewhiddenactivities, mod/quiz:view, mod/quiz:viewreports, report/completion:view, moodle/site:accessallgroups`.
+  `webservice/rest:use, moodle/user:create, moodle/user:viewdetails, moodle/user:viewalldetails, moodle/user:viewhiddendetails, moodle/course:view, moodle/course:viewhiddencourses, moodle/course:viewparticipants, moodle/course:enrolreview, enrol/manual:enrol, enrol/manual:unenrol, moodle/role:assign, moodle/grade:viewall, gradereport/user:view, moodle/course:viewhiddenactivities, mod/quiz:view, mod/quiz:viewreports, mod/quiz:manageoverrides (spec 004), report/completion:view, moodle/site:accessallgroups`.
   Permitir que `integracaocrm` atribua `student` (`core_role_set_assign_allowed`).
 - Autorizado no serviço (`external_services_users`); token permanente gerado com `\core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $userid, context_system::instance())` — reaproveita o existente se houver.
 

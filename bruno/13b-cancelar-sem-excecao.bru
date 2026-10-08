@@ -1,0 +1,23 @@
+meta {
+  name: 13b Cancelar sem exceção
+  type: http
+  seq: 21
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_cancelar_nova_tentativa
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "quizid": 1,
+    "userid": 72
+  }
+}
+
+docs {
+  Repete o cancelamento: já não há exceção para a Maria.
+  Resposta esperada: 404 "Não há nova tentativa liberada para este candidato."
+}

@@ -44,7 +44,7 @@ class configurador {
     /** Username do usuário técnico. */
     public const USUARIO = 'ws_crm';
 
-    /** Capabilities do papel integracaocrm (design da spec 002). */
+    /** Capabilities do papel integracaocrm (design da spec 002 + spec 004). */
     public const CAPABILITIES = [
         'webservice/rest:use',
         'moodle/user:create',
@@ -63,6 +63,7 @@ class configurador {
         'moodle/course:viewhiddenactivities',
         'mod/quiz:view',
         'mod/quiz:viewreports',
+        'mod/quiz:manageoverrides',
         'report/completion:view',
         'moodle/site:accessallgroups',
     ];

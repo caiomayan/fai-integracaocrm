@@ -1,7 +1,7 @@
 meta {
-  name: 09 Desmatricular (limpeza)
+  name: 14b Desmatricular de novo
   type: http
-  seq: 18
+  seq: 23
 }
 
 post {
@@ -14,7 +14,7 @@ body:json {
   {
     "enrolments": [
       {
-        "userid": 73,
+        "userid": 72,
         "courseid": 2
       }
     ]
@@ -22,6 +22,6 @@ body:json {
 }
 
 docs {
-  Remove a matrícula do João para deixar o curso como estava.
-  Resposta esperada: 204, sem corpo.
+  Repete a desmatrícula; a Maria já não tem matrícula manual.
+  Resposta esperada: 404 "O candidato não está matriculado neste curso."
 }

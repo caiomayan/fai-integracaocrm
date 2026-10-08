@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.6.1
+  version: 1.8.2
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -31,6 +31,10 @@ tags:
     description: Matricular e desmatricular candidatos no curso.
   - name: Resultados
     description: Nota, conclusão e datas dos candidatos do curso, com paginação e filtro por data da prova.
+  - name: Catálogo
+    description: Cursos do Moodle e provas de um curso.
+  - name: Recaptação
+    description: Liberar (e cancelar) uma nova tentativa da prova para um candidato específico.
   - name: Consultas auxiliares
     description: Funções nativas do Moodle liberadas no serviço, para conferência. As respostas são as nativas (resumidas nos exemplos).
 security:
@@ -461,6 +465,8 @@ paths:
                         datamatricula: "2026-10-06T11:38:01-03:00"
                         dataprova: null
                         dataconclusao: null
+                        tentativas: 0
+                        podefazerprova: true
                       - username: "91791379514"
                         firstname: João
                         lastname: Demonstração
@@ -471,6 +477,8 @@ paths:
                         datamatricula: "2026-10-07T10:25:18-03:00"
                         dataprova: "2026-10-07T10:32:10-03:00"
                         dataconclusao: "2026-10-07T10:32:10-03:00"
+                        tentativas: 1
+                        podefazerprova: false
                 semProvas:
                   summary: Filtro por data sem provas
                   value:
@@ -518,6 +526,355 @@ paths:
           $ref: '#/components/responses/MetodoNaoPermitido'
         '413':
           $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/local_faicrm_listar_cursos:
+    post:
+      tags: [Catálogo]
+      operationId: listarCursos
+      summary: Listar cursos
+      description: |
+        Cursos do Moodle, 100 por página, em ordem de nome e id. **Inclui os ocultos** (`visivel: false`) e exclui a página
+        inicial do site. O filtro `visivel` é opcional: `true` só os visíveis, `false` só os ocultos. Datas em ISO 8601 com
+        fuso, ou `null`. Função própria do plugin `local_faicrm`, somente leitura.
+
+        Curso **ativo** = `visivel: true` e dentro de `datainicio`/`datafim`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pagina:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                  description: Número da página.
+                visivel:
+                  type: boolean
+                  description: Só visíveis (`true`) ou só ocultos (`false`). Sem ele, todos.
+            examples:
+              todos:
+                summary: Todos os cursos, primeira página
+                value:
+                  pagina: 1
+              soVisiveis:
+                summary: Só os cursos visíveis
+                value:
+                  pagina: 1
+                  visivel: true
+      responses:
+        '200':
+          description: Página de cursos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CursosPaginados'
+              example:
+                total: 2
+                pagina: 1
+                porpagina: 100
+                totalpaginas: 1
+                cursos:
+                  - id: 4
+                    shortname: OCULTOTMP
+                    nome: AAA Oculto tmp
+                    categoriaid: 1
+                    categoria: Categoria 1
+                    visivel: false
+                    datainicio: "2026-11-01T00:00:00-03:00"
+                    datafim: "2026-12-15T18:30:00-03:00"
+                  - id: 2
+                    shortname: VEST20271
+                    nome: Vestibular 2027.1
+                    categoriaid: 1
+                    categoria: Categoria 1
+                    visivel: true
+                    datainicio: null
+                    datafim: null
+        '400':
+          description: Parâmetro inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                paginaInvalida:
+                  summary: pagina menor que 1
+                  value:
+                    message: "Dados inválidos: pagina deve ser maior ou igual a 1."
+                visivelInvalido:
+                  summary: visivel que não é booleano
+                  value:
+                    message: "Dados inválidos: verifique o campo visivel."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/local_faicrm_listar_provas:
+    post:
+      tags: [Catálogo]
+      operationId: listarProvas
+      summary: Listar as provas de um curso
+      description: |
+        Provas (questionários) do curso, com as regras que valem para a recaptação: `tentativaspermitidas` (0 = ilimitado),
+        `metodonota` (`maior`, `media`, `primeira` ou `ultima`: como a nota é calculada com várias tentativas), abertura
+        e fechamento (ISO 8601, ou `null`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseid]
+              properties:
+                courseid:
+                  type: integer
+                  description: Id do curso.
+            example:
+              courseid: 2
+      responses:
+        '200':
+          description: Provas do curso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvasDoCurso'
+              example:
+                courseid: 2
+                provas:
+                  - id: 1
+                    cmid: 2
+                    nome: Prova Vestibular 2027.1
+                    visivel: true
+                    notamaxima: 1000
+                    tentativaspermitidas: 1
+                    metodonota: maior
+                    abertura: null
+                    fechamento: null
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo curso é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Curso inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Curso não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+  /local/faicrm/rest_json.php/local_faicrm_liberar_nova_tentativa:
+    post:
+      tags: [Recaptação]
+      operationId: liberarNovaTentativa
+      summary: Liberar nova tentativa da prova
+      description: |
+        Dá **uma tentativa a mais** da prova para **um candidato específico**, por meio de uma exceção de usuário nativa do
+        Moodle (só ele é afetado). Nada é apagado: as tentativas antigas ficam no histórico, e a nota segue a regra de nota
+        da prova (com "maior nota", refazer nunca piora). `prazo` é opcional (`AAAA-MM-DD`, vale até 23:59:59 de Brasília,
+        só para esse candidato).
+
+        Regras, **nesta ordem**: prova e candidato existem (404); candidato com matrícula ativa no curso (409); sem tentativa
+        em andamento (409); sem tentativa disponível, ou seja, já usou o limite (409 "ainda pode fazer a prova"); `prazo`
+        válido e não passado (400); prova encerrada exige `prazo` (400).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quizid, userid]
+              properties:
+                quizid:
+                  type: integer
+                  description: Id da prova (`id` de `listarProvas`).
+                userid:
+                  type: integer
+                  description: Id do candidato.
+                prazo:
+                  type: string
+                  format: date
+                  description: Prazo opcional (`AAAA-MM-DD`), até 23:59:59 de Brasília.
+            examples:
+              semPrazo:
+                summary: Sem prazo
+                value:
+                  quizid: 1
+                  userid: 72
+              comPrazo:
+                summary: Com prazo
+                value:
+                  quizid: 1
+                  userid: 72
+                  prazo: "2026-12-31"
+      responses:
+        '200':
+          description: Nova tentativa liberada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NovaTentativa'
+              example:
+                quizid: 1
+                userid: 72
+                tentativaspermitidas: 2
+                prazo: "2026-12-31T23:59:59-03:00"
+        '400':
+          description: Prazo inválido ou no passado, ou prova encerrada sem prazo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                prazoInvalido:
+                  summary: prazo fora do formato
+                  value:
+                    message: "Dados inválidos: prazo deve estar no formato AAAA-MM-DD."
+                prazoNoPassado:
+                  summary: prazo no passado
+                  value:
+                    message: "Dados inválidos: prazo não pode estar no passado."
+                provaEncerrada:
+                  summary: prova encerrada sem prazo
+                  value:
+                    message: "A prova está encerrada: informe um prazo para a nova tentativa."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Prova ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                prova:
+                  summary: Prova inexistente
+                  value:
+                    message: "Prova não encontrada."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: Não é possível liberar agora.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                naoMatriculado:
+                  summary: Sem matrícula ativa no curso
+                  value:
+                    message: "O candidato não está matriculado neste curso."
+                emAndamento:
+                  summary: Tentativa em andamento
+                  value:
+                    message: "O candidato tem uma tentativa em andamento."
+                aindaPode:
+                  summary: Ainda tem tentativa disponível
+                  value:
+                    message: "O candidato ainda pode fazer a prova."
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+        '503':
+          $ref: '#/components/responses/Ocupado'
+  /local/faicrm/rest_json.php/local_faicrm_cancelar_nova_tentativa:
+    post:
+      tags: [Recaptação]
+      operationId: cancelarNovaTentativa
+      summary: Cancelar a nova tentativa liberada
+      description: |
+        Desfaz a liberação (remove a exceção do candidato) enquanto ele ainda **não iniciou** a tentativa extra. Sem exceção
+        para o candidato devolve 404; se ele já iniciou ou finalizou a tentativa extra, 409. Sucesso: `204`, sem corpo.
+        O cancelamento desfaz exatamente o que a liberação fez: tentativas e prazo voltam ao que eram antes (sem exceção,
+        se ela não existia). Ajustes feitos pela FAI no Moodle (abertura, prazo, tempo limite ou senha, por exemplo para
+        acessibilidade) são mantidos, inclusive um prazo alterado pela FAI depois da liberação. Uma exceção sem
+        tentativas (só esses ajustes) não conta como nova tentativa liberada: 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quizid, userid]
+              properties:
+                quizid:
+                  type: integer
+                  description: Id da prova.
+                userid:
+                  type: integer
+                  description: Id do candidato.
+            example:
+              quizid: 1
+              userid: 72
+      responses:
+        '204':
+          description: Liberação cancelada. Sem corpo.
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo prova é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          description: Prova ou candidato inexistente, ou sem nova tentativa liberada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                semExcecao:
+                  summary: Sem nova tentativa liberada
+                  value:
+                    message: "Não há nova tentativa liberada para este candidato."
+                prova:
+                  summary: Prova inexistente
+                  value:
+                    message: "Prova não encontrada."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: O candidato já iniciou a nova tentativa. Nada é alterado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "O candidato já iniciou a nova tentativa."
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+        '503':
+          $ref: '#/components/responses/Ocupado'
   /local/faicrm/rest_json.php/core_completion_get_course_completion_status:
     post:
       tags: [Consultas auxiliares]
@@ -935,6 +1292,102 @@ components:
           description: Descrição em português, clara para o usuário final.
       example:
         message: "Já existe um candidato com este e-mail."
+    CursosPaginados:
+      type: object
+      required: [total, pagina, porpagina, totalpaginas, cursos]
+      properties:
+        total:
+          type: integer
+        pagina:
+          type: integer
+        porpagina:
+          type: integer
+          description: Fixo em 100.
+        totalpaginas:
+          type: integer
+        cursos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Curso'
+    Curso:
+      type: object
+      required: [id, shortname, nome, categoriaid, categoria, visivel, datainicio, datafim]
+      properties:
+        id:
+          type: integer
+        shortname:
+          type: string
+        nome:
+          type: string
+        categoriaid:
+          type: integer
+        categoria:
+          type: string
+        visivel:
+          type: boolean
+        datainicio:
+          type: string
+          format: date-time
+          nullable: true
+        datafim:
+          type: string
+          format: date-time
+          nullable: true
+    ProvasDoCurso:
+      type: object
+      required: [courseid, provas]
+      properties:
+        courseid:
+          type: integer
+        provas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prova'
+    Prova:
+      type: object
+      required: [id, cmid, nome, visivel, notamaxima, tentativaspermitidas, metodonota, abertura, fechamento]
+      properties:
+        id:
+          type: integer
+          description: Id da prova (`quizid`).
+        cmid:
+          type: integer
+        nome:
+          type: string
+        visivel:
+          type: boolean
+        notamaxima:
+          type: number
+        tentativaspermitidas:
+          type: integer
+          description: 0 = ilimitado.
+        metodonota:
+          type: string
+          enum: [maior, media, primeira, ultima]
+        abertura:
+          type: string
+          format: date-time
+          nullable: true
+        fechamento:
+          type: string
+          format: date-time
+          nullable: true
+    NovaTentativa:
+      type: object
+      required: [quizid, userid, tentativaspermitidas, prazo]
+      properties:
+        quizid:
+          type: integer
+        userid:
+          type: integer
+        tentativaspermitidas:
+          type: integer
+          description: Tentativas que o candidato passa a ter (finalizadas + 1).
+        prazo:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fechamento da prova para esse candidato, se `prazo` foi informado.
     NovoCandidato:
       type: object
       required: [username, password, firstname, lastname, email]
@@ -984,7 +1437,7 @@ components:
       additionalProperties: true
     Candidato:
       type: object
-      required: [username, firstname, lastname, email, courseid, nota, concluido, datamatricula, dataprova, dataconclusao]
+      required: [username, firstname, lastname, email, courseid, nota, concluido, datamatricula, dataprova, dataconclusao, tentativas, podefazerprova]
       properties:
         username:
           type: string
@@ -1018,6 +1471,14 @@ components:
           format: date-time
           nullable: true
           description: Quando o curso foi concluído; `null` se não concluiu.
+        tentativas:
+          type: integer
+          description: Tentativas da prova que o candidato finalizou.
+        podefazerprova:
+          type: boolean
+          description: |
+            `true` se ele pode iniciar ou continuar uma tentativa agora (matrícula ativa, prova visível e aberta, tentativa
+            disponível ou em andamento, considerando a exceção de nova tentativa).
     ResultadoPaginado:
       type: object
       required: [total, pagina, porpagina, totalpaginas, candidatos]
@@ -1078,6 +1539,14 @@ components:
             $ref: '#/components/schemas/Erro'
           example:
             message: "Método não permitido. Use POST."
+    Ocupado:
+      description: Outra liberação ou cancelamento do mesmo candidato nesta prova está em andamento. Tente de novo em instantes.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            message: "Serviço temporariamente indisponível. Tente novamente mais tarde."
     CorpoGrande:
       description: Corpo da requisição maior que 1 MB.
       content:

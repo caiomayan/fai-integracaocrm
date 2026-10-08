@@ -21,6 +21,7 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 | ID | Spec | Status |
 |---|---|---|
 | 001 | [Ambiente de desenvolvimento](specs/001-ambiente-dev/spec.md) | ✅ concluída |
+| 004 | [Nova tentativa e catálogo de cursos/provas](specs/004-nova-tentativa-e-catalogo/requirements.md) | ✅ concluída (1.8.2) |
 | 003 | [Prontidão para produção](specs/003-prontidao-producao/requirements.md) · guia: [implantacao-producao.md](implantacao-producao.md) | ✅ concluída (pronto para homologação) |
 | 002 | [Integração CRM ↔ Moodle (Vestibular)](specs/002-integracao-crm/requirements.md) · guia: [integracao-crm.md](integracao-crm.md) | ✅ implementada (aguarda revisão) |
 

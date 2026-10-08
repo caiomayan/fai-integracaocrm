@@ -103,6 +103,115 @@ class get_resultados_vestibular extends external_api {
     }
 
     /**
+     * Computes, in batch for a page of users, the finished attempts and whether each can take the exam now.
+     *
+     * A fixed number of queries, independent of the number of users: quizzes of the course, attempts,
+     * user overrides and active enrolments of the page.
+     *
+     * @param int $courseid Course id.
+     * @param int[] $userids Ids of the users of the page.
+     * @return array [userid => ['tentativas' => int, 'podefazerprova' => bool]]
+     */
+    protected static function calcular_tentativas(int $courseid, array $userids): array {
+        global $DB;
+
+        $now = time();
+        $result = [];
+        foreach ($userids as $userid) {
+            $result[$userid] = ['tentativas' => 0, 'podefazerprova' => false];
+        }
+
+        $quizzes = $DB->get_records_sql(
+            "SELECT q.id, q.attempts, q.timeopen, q.timeclose, cm.visible
+               FROM {quiz} q
+               JOIN {modules} m ON m.name = 'quiz'
+               JOIN {course_modules} cm ON cm.module = m.id AND cm.instance = q.id
+              WHERE q.course = :course AND cm.deletioninprogress = 0",
+            ['course' => $courseid]
+        );
+        if (!$quizzes) {
+            return $result;
+        }
+        [$uinsql, $uparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'au');
+        [$qinsql, $qparams] = $DB->get_in_or_equal(array_keys($quizzes), SQL_PARAMS_NAMED, 'aq');
+
+        // Attempts per quiz and user: finished and abandoned use up the limit; in progress/overdue can be continued.
+        $used = [];
+        $running = [];
+        $rs = $DB->get_recordset_sql(
+            "SELECT quiz, userid, state, COUNT(1) AS total
+               FROM {quiz_attempts}
+              WHERE quiz $qinsql AND userid $uinsql AND preview = 0
+           GROUP BY quiz, userid, state",
+            $qparams + $uparams
+        );
+        foreach ($rs as $row) {
+            if (in_array($row->state, ['finished', 'abandoned'], true)) {
+                $used[$row->quiz][$row->userid] = ($used[$row->quiz][$row->userid] ?? 0) + (int) $row->total;
+                if ($row->state === 'finished') {
+                    $result[$row->userid]['tentativas'] += (int) $row->total;
+                }
+            } else {
+                $running[$row->quiz][$row->userid] = true;
+            }
+        }
+        $rs->close();
+
+        // User overrides (attempts and opening/closing dates).
+        $overrides = [];
+        $rs = $DB->get_recordset_sql(
+            "SELECT quiz, userid, attempts, timeopen, timeclose
+               FROM {quiz_overrides}
+              WHERE quiz $qinsql AND userid $uinsql",
+            $qparams + $uparams
+        );
+        foreach ($rs as $row) {
+            $overrides[$row->quiz][$row->userid] = $row;
+        }
+        $rs->close();
+
+        // Active enrolments of the page (enabled instance and plugin, inside the enrolment dates).
+        $plugins = array_filter(explode(',', (string) get_config('core', 'enrol_plugins_enabled')));
+        [$pinsql, $pparams] = $DB->get_in_or_equal($plugins ?: ['manual'], SQL_PARAMS_NAMED, 'ap');
+        $enrolled = $DB->get_records_sql(
+            "SELECT DISTINCT ue.userid
+               FROM {user_enrolments} ue
+               JOIN {enrol} e ON e.id = ue.enrolid
+              WHERE e.courseid = :ecourse AND e.status = :enabled AND e.enrol $pinsql
+                    AND ue.status = :active AND ue.userid $uinsql
+                    AND ue.timestart <= :now1 AND (ue.timeend = 0 OR ue.timeend > :now2)",
+            ['ecourse' => $courseid, 'enabled' => ENROL_INSTANCE_ENABLED, 'active' => ENROL_USER_ACTIVE,
+                'now1' => $now, 'now2' => $now] + $pparams + $uparams
+        );
+
+        $coursevisible = (bool) get_course($courseid)->visible;
+        foreach ($userids as $userid) {
+            if (!$coursevisible || !isset($enrolled[$userid])) {
+                continue;
+            }
+            foreach ($quizzes as $quiz) {
+                if (!$quiz->visible) {
+                    continue;
+                }
+                if (!empty($running[$quiz->id][$userid])) {
+                    $result[$userid]['podefazerprova'] = true;
+                    break;
+                }
+                $override = $overrides[$quiz->id][$userid] ?? null;
+                $timeopen = $override && $override->timeopen !== null ? (int) $override->timeopen : (int) $quiz->timeopen;
+                $timeclose = $override && $override->timeclose !== null ? (int) $override->timeclose : (int) $quiz->timeclose;
+                $limit = $override && $override->attempts !== null ? (int) $override->attempts : (int) $quiz->attempts;
+                $open = ($timeopen === 0 || $timeopen <= $now) && ($timeclose === 0 || $now <= $timeclose);
+                if ($open && ($limit === 0 || ($used[$quiz->id][$userid] ?? 0) < $limit)) {
+                    $result[$userid]['podefazerprova'] = true;
+                    break;
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Returns one page of the users with the student role in the course, with course total, completion and dates.
      *
      * @param int $courseid Course id.
@@ -219,6 +328,8 @@ class get_resultados_vestibular extends external_api {
             ['qcourse' => $courseid] + $inparams
         );
 
+        $tentativas = self::calcular_tentativas($courseid, $userids);
+
         foreach ($users as $user) {
             $nota = null;
             if (isset($coursegrades->grades[$user->id])) {
@@ -240,6 +351,8 @@ class get_resultados_vestibular extends external_api {
                 'datamatricula' => self::format_date($enrolments[$user->id]->firstenrol ?? null),
                 'dataprova' => self::format_date($attempts[$user->id]->lastfinish ?? null),
                 'dataconclusao' => self::format_date($completions[$user->id]->timecompleted ?? null),
+                'tentativas' => $tentativas[$user->id]['tentativas'],
+                'podefazerprova' => $tentativas[$user->id]['podefazerprova'],
             ];
         }
 
@@ -276,6 +389,8 @@ class get_resultados_vestibular extends external_api {
                     'datamatricula' => $date('Enrolment date (ISO 8601), null when none'),
                     'dataprova' => $date('End of the last finished quiz attempt (ISO 8601), null when none'),
                     'dataconclusao' => $date('Course completion date (ISO 8601), null when not completed'),
+                    'tentativas' => new external_value(PARAM_INT, 'Finished attempts in the quizzes of the course'),
+                    'podefazerprova' => new external_value(PARAM_BOOL, 'Whether the user can start or continue an attempt now'),
                 ])
             ),
         ]);

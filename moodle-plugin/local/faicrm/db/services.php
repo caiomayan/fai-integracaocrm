@@ -32,6 +32,34 @@ $functions = [
         'type' => 'read',
         'capabilities' => 'moodle/grade:viewall, moodle/course:viewparticipants',
     ],
+    'local_faicrm_listar_cursos' => [
+        'classname' => 'local_faicrm\external\listar_cursos',
+        'methodname' => 'execute',
+        'description' => 'Lists the courses of the site (paginated), including hidden ones.',
+        'type' => 'read',
+        'capabilities' => 'moodle/course:viewhiddencourses',
+    ],
+    'local_faicrm_listar_provas' => [
+        'classname' => 'local_faicrm\external\listar_provas',
+        'methodname' => 'execute',
+        'description' => 'Lists the quizzes of a course with attempts, grading method and dates.',
+        'type' => 'read',
+        'capabilities' => 'mod/quiz:view',
+    ],
+    'local_faicrm_liberar_nova_tentativa' => [
+        'classname' => 'local_faicrm\external\liberar_nova_tentativa',
+        'methodname' => 'execute',
+        'description' => 'Releases one more quiz attempt for one candidate through a native user override.',
+        'type' => 'write',
+        'capabilities' => 'mod/quiz:manageoverrides',
+    ],
+    'local_faicrm_cancelar_nova_tentativa' => [
+        'classname' => 'local_faicrm\external\cancelar_nova_tentativa',
+        'methodname' => 'execute',
+        'description' => 'Cancels the extra attempt released for a candidate (removes the quiz user override).',
+        'type' => 'write',
+        'capabilities' => 'mod/quiz:manageoverrides',
+    ],
 ];
 
 $services = [
@@ -53,6 +81,10 @@ $services = [
             'core_completion_get_course_completion_status',
             'gradereport_user_get_grade_items',
             'local_faicrm_get_resultados_vestibular',
+            'local_faicrm_listar_cursos',
+            'local_faicrm_listar_provas',
+            'local_faicrm_liberar_nova_tentativa',
+            'local_faicrm_cancelar_nova_tentativa',
         ],
     ],
 ];

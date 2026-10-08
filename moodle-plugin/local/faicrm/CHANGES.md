@@ -1,5 +1,22 @@
 # Histórico de versões — local_faicrm
 
+## 1.8.2 (2026100812)
+- `cancelar_nova_tentativa` desfaz exatamente o que o `liberar` fez: o `liberar` passa a registrar, numa preferência do candidato (`local_faicrm_novatentativa_<quizid>`), como a exceção estava antes (existia?, attempts, fechamento) e o que ele gravou; o `cancelar` volta attempts e fechamento a esses valores (removendo a exceção quando ela não existia) e mantém um fechamento que a FAI tenha mudado depois. Antes, um prazo da FAI na exceção se perdia ou era trocado pelo prazo do CRM depois do cancelamento.
+- Sem registro (liberação feita antes desta versão), o `cancelar` mantém o fechamento da exceção e só retira as tentativas.
+- Privacidade: o provedor deixa de ser `null_provider` e declara/exporta essa preferência; `db/uninstall.php` a remove na desinstalação.
+
+## 1.8.1 (2026100811)
+- Revisão de segurança da recaptação (spec 004, N2):
+  - `liberar` e `cancelar` rodam sob uma trava por candidato e prova (`core\lock`): chamadas simultâneas não duplicam a exceção (a tabela `quiz_overrides` não tem índice único). Trava não obtida em 10 s → 503.
+  - `cancelar` não apaga mais ajustes feitos pela FAI na exceção do candidato (abertura, tempo limite, senha): só retira a tentativa extra. Exceção sem tentativas não conta como nova tentativa liberada (404).
+  - `liberar`: quando o novo limite fica igual ao da prova (uma exceção anterior tinha reduzido o limite) e não sobra outro ajuste, a exceção é removida em vez de dar erro.
+
+## 1.8.0 (2026100810)
+- Recaptação: `local_faicrm_liberar_nova_tentativa` (uma tentativa a mais da prova para UM candidato, com exceção de usuário nativa do quiz; prazo opcional) e `local_faicrm_cancelar_nova_tentativa`.
+- Catálogo: `local_faicrm_listar_cursos` (paginado, com visibilidade e datas) e `local_faicrm_listar_provas`.
+- Resultados: `tentativas` e `podefazerprova` em cada candidato (calculados em lote por página).
+- O papel `integracaocrm` ganha `mod/quiz:manageoverrides` (20 capabilities); `configurar.php` e `verificar.php` já a conhecem.
+
 ## 1.7.1 (2026100801)
 - Código no padrão do Moodle Code Checker (moodle-cs): sem erros nem avisos. As classes do adaptador foram para `classes/rest_json/` (`handler`, `server`, `conflict_exception`); o comportamento da API não muda.
 - `cli/configurar.php`: `--validade-dias` vale só para o token (exige `--gerar-token`, de 1 a 3650 dias). A autorização do `ws_crm` no serviço fica sempre sem validade: no Moodle 4.5 uma validade ali bloqueia todas as chamadas (403). `--ip` é normalizado e há aviso para faixas `/0`.

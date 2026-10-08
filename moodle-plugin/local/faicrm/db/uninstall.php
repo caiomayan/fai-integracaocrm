@@ -15,17 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for local_faicrm.
+ * Uninstall steps for local_faicrm.
  *
  * @package    local_faicrm
  * @copyright  2026 FAI
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
-$plugin->component = 'local_faicrm';
-$plugin->version   = 2026100812;
-$plugin->requires  = 2024100700;
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.8.2';
+/**
+ * Removes the user preferences that record extra attempts released by the CRM.
+ *
+ * The quiz overrides themselves are native Moodle data and are kept.
+ *
+ * @return bool
+ */
+function xmldb_local_faicrm_uninstall() {
+    global $DB;
+    $DB->delete_records_select('user_preferences', $DB->sql_like('name', ':name'), ['name' => 'local_faicrm_novatentativa_%']);
+    return true;
+}

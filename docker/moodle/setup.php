@@ -28,6 +28,7 @@ const FAI_COURSE        = 'VEST20271';
 const FAI_COURSE_NAME   = 'Vestibular 2027.1';
 const FAI_QUIZ_NAME     = 'Prova Vestibular 2027.1';
 const FAI_QUIZ_GRADE    = 1000;
+const FAI_QUIZ_ATTEMPTS = 1; // Vestibular: uma tentativa; refazer só com nova tentativa liberada (spec 004).
 const FAI_QCAT_NAME     = 'Prova Vestibular 2027.1';
 
 function out(string $msg): void {
@@ -125,7 +126,7 @@ if (!$quiz) {
         'intro'              => 'Prova do vestibular: 5 questões de múltipla escolha, 200 pontos cada.',
         'grade'              => FAI_QUIZ_GRADE,
         'sumgrades'          => 0,
-        'attempts'           => 0,
+        'attempts'           => FAI_QUIZ_ATTEMPTS,
         'questionsperpage'   => 0,
         'shuffleanswers'     => 1,
         'preferredbehaviour' => 'deferredfeedback',
@@ -146,6 +147,11 @@ if ($cm->completion != COMPLETION_TRACKING_AUTOMATIC || $cm->completiongradeitem
     ]);
     rebuild_course_cache($course->id, true);
     out('conclusão automática por nota ajustada no questionário');
+}
+if ((int) $quiz->attempts !== FAI_QUIZ_ATTEMPTS) {
+    $DB->set_field('quiz', 'attempts', FAI_QUIZ_ATTEMPTS, ['id' => $quiz->id]);
+    $quiz->attempts = FAI_QUIZ_ATTEMPTS;
+    out('tentativas permitidas do questionário ajustadas para ' . FAI_QUIZ_ATTEMPTS);
 }
 if ((float) $quiz->grade != FAI_QUIZ_GRADE) {
     $DB->set_field('quiz', 'grade', FAI_QUIZ_GRADE, ['id' => $quiz->id]);

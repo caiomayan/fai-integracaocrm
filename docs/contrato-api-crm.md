@@ -45,6 +45,8 @@ Todo erro tem o mesmo corpo, com a mensagem em português, pronta para exibir:
 
 Toda resposta traz o header `X-Request-Id`. Informe esse valor ao suporte para localizar a chamada no log.
 
+> **Ao exibir no front:** nomes de curso, de prova e de candidato vêm como texto do Moodle. **Escape** esses textos antes de inserir no HTML.
+
 ---
 
 ## 1. Localizar candidato — `core_user_get_users_by_field`
@@ -131,7 +133,8 @@ São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 4
     "nota": 760, "concluido": true,
     "datamatricula": "2026-10-01T09:15:00-03:00",
     "dataprova": "2026-10-07T14:32:10-03:00",
-    "dataconclusao": "2026-10-07T14:32:10-03:00"
+    "dataconclusao": "2026-10-07T14:32:10-03:00",
+    "tentativas": 1, "podefazerprova": false
   }]
 }
 ```
@@ -143,10 +146,88 @@ São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 4
 | `datamatricula` | quando foi matriculado |
 | `dataprova` | quando finalizou a prova (última tentativa finalizada); `null` se não fez |
 | `dataconclusao` | quando concluiu; `null` se não concluiu |
+| `tentativas` | quantas tentativas da prova o candidato **finalizou** |
+| `podefazerprova` | `true` se ele pode iniciar ou continuar uma tentativa agora (matriculado, prova visível e aberta, tentativa disponível ou em andamento) |
 
 As datas vêm em ISO 8601 com fuso. Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`.
 
 > **Rematrícula:** se um candidato for desmatriculado e matriculado de novo, o Moodle mantém a conclusão e a tentativa antigas. Ele pode voltar com `concluido: true` e `dataprova` preenchida, mas com `nota: null`. Esse é o comportamento nativo do Moodle.
+
+## 6. Listar cursos — `local_faicrm_listar_cursos`
+
+```json
+{ "pagina": 1, "visivel": true }
+```
+`pagina` (padrão 1) e `visivel` (opcional: `true` só os visíveis, `false` só os ocultos; sem ele, todos) são opcionais. São 100 cursos por página; a página inicial do Moodle não entra.
+
+**200**
+```json
+{
+  "total": 2, "pagina": 1, "porpagina": 100, "totalpaginas": 1,
+  "cursos": [{
+    "id": 2, "shortname": "VEST20271", "nome": "Vestibular 2027.1",
+    "categoriaid": 1, "categoria": "Categoria 1",
+    "visivel": true, "datainicio": null, "datafim": null
+  }]
+}
+```
+Ordem: nome, id. Curso **ativo** = `visivel: true` e dentro de `datainicio`/`datafim` (as datas vêm em ISO 8601 com fuso, ou `null`).
+
+## 7. Listar as provas de um curso — `local_faicrm_listar_provas`
+
+```json
+{ "courseid": 2 }
+```
+**200**
+```json
+{
+  "courseid": 2,
+  "provas": [{
+    "id": 1, "cmid": 2, "nome": "Prova Vestibular 2027.1", "visivel": true,
+    "notamaxima": 1000, "tentativaspermitidas": 1, "metodonota": "maior",
+    "abertura": null, "fechamento": null
+  }]
+}
+```
+`tentativaspermitidas`: 0 = ilimitado. `metodonota`: `maior`, `media`, `primeira` ou `ultima` (como a nota do candidato é calculada com várias tentativas). **404** "Curso não encontrado."
+
+## 8. Liberar nova tentativa — `local_faicrm_liberar_nova_tentativa`
+
+Recaptação: dá **uma tentativa a mais da prova para um candidato específico**, sem mexer nos outros. Nada é apagado: as tentativas antigas ficam no histórico, e a nota segue a regra de nota da prova (com "maior nota", refazer nunca piora).
+
+```json
+{ "quizid": 1, "userid": 72, "prazo": "2026-12-31" }
+```
+`prazo` é opcional (`AAAA-MM-DD`, vale até 23:59:59 de Brasília, só para esse candidato).
+
+**200**
+```json
+{ "quizid": 1, "userid": 72, "tentativaspermitidas": 2, "prazo": "2026-12-31T23:59:59-03:00" }
+```
+
+Erros, nesta ordem de verificação:
+
+| Status | message |
+|---|---|
+| 404 | Prova não encontrada. / Candidato não encontrado. |
+| 409 | O candidato não está matriculado neste curso. |
+| 409 | O candidato tem uma tentativa em andamento. |
+| 409 | O candidato ainda pode fazer a prova. |
+| 400 | Dados inválidos: prazo deve estar no formato AAAA-MM-DD. / Dados inválidos: prazo não pode estar no passado. |
+| 400 | A prova está encerrada: informe um prazo para a nova tentativa. |
+| 503 | Serviço temporariamente indisponível. Tente novamente mais tarde. (outra chamada para o mesmo candidato e prova estava em andamento; tente de novo) |
+
+## 9. Cancelar nova tentativa — `local_faicrm_cancelar_nova_tentativa`
+
+Desfaz a liberação enquanto o candidato ainda não usou a tentativa extra.
+
+```json
+{ "quizid": 1, "userid": 72 }
+```
+**204**: cancelada, sem corpo.
+**404** "Não há nova tentativa liberada para este candidato." · **409** "O candidato já iniciou a nova tentativa." · **503** se outra chamada para o mesmo candidato estiver em andamento (tente de novo).
+
+O cancelamento devolve a exceção ao estado de antes da liberação: tempo extra, senha ou prazo que a FAI tenha dado ao candidato são mantidos.
 
 ## Consultas auxiliares (nativas do Moodle)
 
@@ -154,8 +235,8 @@ Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
 
 | Operação | Corpo | Para quê |
 |---|---|---|
-| `core_course_get_courses_by_field` | `{"field":"shortname","value":"VEST20271"}` | descobrir o `courseid` |
-| `mod_quiz_get_quizzes_by_courses` | `{"courseids":[2]}` | descobrir o id da prova (`moodle_quiz_id`) |
+| `core_course_get_courses_by_field` | `{"field":"shortname","value":"VEST20271"}` | descobrir o `courseid` (para listar todos, use a seção 6) |
+| `mod_quiz_get_quizzes_by_courses` | `{"courseids":[2]}` | descobrir o id da prova (para uma lista enxuta, use a seção 7) |
 | `mod_quiz_get_user_attempts` | `{"quizid":1,"userid":72,"status":"all"}` | tentativas do candidato |
 | `core_completion_get_course_completion_status` | `{"courseid":2,"userid":72}` | conclusão de um candidato |
 | `gradereport_user_get_grade_items` | `{"courseid":2,"userid":72}` | notas detalhadas de um candidato |
@@ -169,6 +250,7 @@ Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
 2. **Matricular** com `userid` + `courseid`. Um **409** significa que ele já estava matriculado: pode tratar como sucesso.
 3. Guardar no CRM: `crm_candidate_id`, `moodle_user_id`, `moodle_course_id`, `moodle_quiz_id` e o status da matrícula.
 4. **Consultar os resultados** quando precisar (sob demanda ou a cada X minutos, não em loop), percorrendo as páginas.
+5. **Recaptação** (refazer a prova): nos resultados, `tentativas ≥ 1` e `podefazerprova: false` indicam quem já fez e não pode refazer. **Liberar a nova tentativa** (seção 8) para aquele candidato; avisá-lo pelos canais do CRM; ele refaz a prova no Moodle; os resultados mostram `tentativas` e `nota` atualizados. Se mudar de ideia antes de ele começar, **cancelar** (seção 9). Um 409 "ainda pode fazer" ou "tentativa em andamento" significa que não é preciso liberar.
 
 ## A confirmar com a FAI antes da produção
 
@@ -176,5 +258,6 @@ Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
 - `courseid` do Vestibular 2027.1 e id da prova.
 - Política de senha (senha = CPF pode ser recusada).
 - Se o servidor repassa o header `Authorization` ao PHP.
+- Se a FAI usa exceções de **grupo** nas provas: o `podefazerprova` dos resultados considera só as exceções de candidato (as que a recaptação cria).
 - O CRM deve chamar exatamente a URL oficial do Moodle (`wwwroot`): com outro host, o Moodle redireciona (303) com uma página HTML em vez de JSON.
 - Se o token tiver restrição de IP, as chamadas precisam sair do IP liberado (senão: 403).

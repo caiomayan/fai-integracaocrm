@@ -16,20 +16,51 @@
 
 namespace local_faicrm\privacy;
 
+use core_privacy\local\metadata\collection;
+use core_privacy\local\request\writer;
+use local_faicrm\util;
+
 /**
- * Privacy provider for local_faicrm: the plugin does not store personal data.
+ * Privacy provider for local_faicrm.
+ *
+ * The only personal data the plugin stores is a user preference per quiz recording an extra attempt released by the
+ * CRM (what the user's quiz override was before, and what the release wrote), so that cancelling restores it exactly.
+ * Everything else goes through the standard Moodle APIs. User preferences are deleted by core with the user.
  *
  * @package    local_faicrm
  * @copyright  2026 FAI
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\null_provider {
+class provider implements
+    \core_privacy\local\metadata\provider,
+    \core_privacy\local\request\user_preference_provider {
     /**
-     * Explains why this plugin stores no personal data.
+     * Describes the personal data stored by the plugin.
      *
-     * @return string language string identifier
+     * @param collection $collection The collection to add metadata to.
+     * @return collection
      */
-    public static function get_reason(): string {
-        return 'privacy:metadata';
+    public static function get_metadata(collection $collection): collection {
+        $collection->add_user_preference(util::PREF_RELEASE . '<quizid>', 'privacy:metadata:preference:novatentativa');
+        return $collection;
+    }
+
+    /**
+     * Exports the release records of a user.
+     *
+     * @param int $userid The user id.
+     */
+    public static function export_user_preferences(int $userid) {
+        $preferences = get_user_preferences(null, null, $userid);
+        foreach ($preferences as $name => $value) {
+            if (strpos($name, util::PREF_RELEASE) === 0) {
+                writer::export_user_preference(
+                    'local_faicrm',
+                    $name,
+                    $value,
+                    get_string('privacy:metadata:preference:novatentativa', 'local_faicrm')
+                );
+            }
+        }
     }
 }

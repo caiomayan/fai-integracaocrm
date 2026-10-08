@@ -1,7 +1,7 @@
 meta {
-  name: 07b Desmatricular de novo
+  name: 14 Desmatricular candidato
   type: http
-  seq: 16
+  seq: 22
 }
 
 post {
@@ -22,6 +22,6 @@ body:json {
 }
 
 docs {
-  Repete a desmatrícula; a Maria já não tem matrícula manual.
-  Resposta esperada: 404 "O candidato não está matriculado neste curso."
+  Remove a matrícula manual da Maria.
+  Resposta esperada: 204, sem corpo.
 }

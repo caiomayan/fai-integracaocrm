@@ -51,6 +51,8 @@ final class handler {
         'theme' => 'tema',
         'courseid' => 'curso',
         'courseids' => 'cursos',
+        'visivel' => 'visivel',
+        'prazo' => 'prazo',
         'quizid' => 'prova',
         'pagina' => 'pagina',
         'porpagina' => 'porpagina',
@@ -248,6 +250,26 @@ final class handler {
                 return [409, 'O candidato já está matriculado neste curso.'];
             case 'notenrolled':
                 return [404, 'O candidato não está matriculado neste curso.'];
+            // Nova tentativa (spec 004): lançadas por local_faicrm_liberar/cancelar_nova_tentativa.
+            case 'candidatonaomatriculado':
+                return [409, 'O candidato não está matriculado neste curso.'];
+            case 'tentativaemandamento':
+                return [409, 'O candidato tem uma tentativa em andamento.'];
+            case 'aindapodefazerprova':
+                return [409, 'O candidato ainda pode fazer a prova.'];
+            case 'tentativajainiciada':
+                return [409, 'O candidato já iniciou a nova tentativa.'];
+            case 'semexcecao':
+                return [404, 'Não há nova tentativa liberada para este candidato.'];
+            case 'prazoinvalido':
+                return [400, 'Dados inválidos: prazo deve estar no formato AAAA-MM-DD.'];
+            case 'prazonopassado':
+                return [400, 'Dados inválidos: prazo não pode estar no passado.'];
+            case 'provaencerrada':
+                return [400, 'A prova está encerrada: informe um prazo para a nova tentativa.'];
+            case 'locktimeout':
+                // Trava do candidato não obtida em 10 s (liberar/cancelar simultâneos).
+                return [503, self::MSG_503];
             case 'accessexception':
             case 'nopermissions':
             case 'requireloginerror':
@@ -364,7 +386,8 @@ final class handler {
             return [400, 'Dados inválidos: o campo ' . self::label($m[1]) . ' é obrigatório.'];
         }
         if (
-            strpos($rest, 'Unexpected keys') === 0 && self::$wsfunction === 'local_faicrm_get_resultados_vestibular'
+            strpos($rest, 'Unexpected keys') === 0
+                && in_array(self::$wsfunction, ['local_faicrm_get_resultados_vestibular', 'local_faicrm_listar_cursos'], true)
                 && preg_match('/\\bporpagina\\b/', $rest)
         ) {
             return [400, 'Dados inválidos: porpagina não é aceito; o serviço usa 100 por página.'];

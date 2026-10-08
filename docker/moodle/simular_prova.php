@@ -22,10 +22,11 @@ const FAI_COURSE    = 'VEST20271';
 const FAI_QUIZ_NAME = 'Prova Vestibular 2027.1';
 
 [$options, $unrecognised] = cli_get_params(
-    ['username' => '', 'acertos' => null, 'help' => false],
-    ['u' => 'username', 'a' => 'acertos', 'h' => 'help']
+    ['username' => '', 'acertos' => null, 'manter' => false, 'help' => false],
+    ['u' => 'username', 'a' => 'acertos', 'm' => 'manter', 'h' => 'help']
 );
-$usage = "Uso: php simular_prova.php --username=USUARIO --acertos=N   (N de 0 a 5)\n";
+$usage = "Uso: php simular_prova.php --username=USUARIO --acertos=N [--manter]   (N de 0 a 5)\n" .
+    "  --manter  não apaga as tentativas anteriores (para simular a nova tentativa liberada)\n";
 if ($unrecognised) {
     cli_error('Opções desconhecidas: ' . implode(', ', $unrecognised) . "\n" . $usage);
 }
@@ -79,7 +80,7 @@ $quizgen = $generator->get_plugin_generator('mod_quiz');
 
 // Simulação determinística: remove tentativas anteriores do candidato (e a conclusão do curso dele),
 // para que o resultado reflita exatamente --acertos (o método de avaliação do quiz é "nota mais alta").
-$previous = quiz_get_user_attempts($quiz->id, $user->id, 'all', true);
+$previous = $options['manter'] ? [] : quiz_get_user_attempts($quiz->id, $user->id, 'all', true);
 if ($previous) {
     foreach ($previous as $old) {
         quiz_delete_attempt($old, $quiz);

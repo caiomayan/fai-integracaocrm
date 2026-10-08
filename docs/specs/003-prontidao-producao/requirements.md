@@ -4,7 +4,7 @@
 A integração (spec 002) está pronta e validada no ambiente local. O objetivo agora é que a instalação na homologação e na produção da FAI seja só **instalar e configurar**, sem ajuste de código depois. Tudo o que depende do ambiente da FAI (IDs reais, política de senha, HTTPS, servidor web) continua como pendência externa.
 
 ## Requisitos
-- **RP-01 Privacidade:** o plugin declara um provedor de privacidade (`null_provider`: ele não guarda dados pessoais), e a checagem de conformidade do Moodle passa.
+- **RP-01 Privacidade:** o plugin declara um provedor de privacidade, e a checagem de conformidade do Moodle passa. **Atualizado na 1.8.2 (spec 004, RF-20b):** o plugin guarda uma preferência por candidato (o estado da exceção antes da nova tentativa). O provider deixa de ser `null_provider` e declara e exporta essa preferência (`user_preference_provider`); o `db/uninstall.php` limpa as preferências, e o core as apaga junto com o usuário.
 - **RP-02 Configuração automática:** `local/faicrm/cli/configurar.php`, idempotente, que:
   - liga web services, o protocolo REST e o acompanhamento de conclusão;
   - cria ou atualiza o papel de sistema `integracaocrm` com as capabilities do design 002, permitindo atribuir só Estudante;

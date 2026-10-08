@@ -2,7 +2,7 @@
 
 Plugin local do Moodle que permite ao CRM da FAI cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova (nota, conclusão e datas) por uma API JSON.
 
-Não guarda dados pessoais: tudo passa pelas APIs padrão do Moodle (autenticação por token, permissões e validação são as nativas).
+Tudo passa pelas APIs padrão do Moodle (autenticação por token, permissões e validação são as nativas). O único dado próprio é uma preferência do candidato por prova (`local_faicrm_novatentativa_<quizid>`) que registra a nova tentativa liberada pelo CRM, para o cancelamento restaurar a exceção como estava; ela é declarada no provedor de privacidade e apagada com o usuário (e na desinstalação do plugin).
 
 ## O que contém
 

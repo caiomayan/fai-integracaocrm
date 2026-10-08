@@ -1,0 +1,22 @@
+meta {
+  name: 10 Listar cursos
+  type: http
+  seq: 15
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_listar_cursos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "pagina": 1
+  }
+}
+
+docs {
+  Lista os cursos do Moodle (100 por página, sem a página inicial), com `visivel`, `datainicio` e `datafim`.
+  Resposta esperada: 200 `{"total", "pagina", "porpagina", "totalpaginas", "cursos": [...]}`.
+}

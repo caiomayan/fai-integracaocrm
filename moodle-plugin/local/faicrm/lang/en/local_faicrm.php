@@ -24,7 +24,16 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['aindapodefazerprova'] = 'The candidate can still take the quiz.';
+$string['candidatonaomatriculado'] = 'The candidate is not enrolled in this course.';
+$string['locktimeout'] = 'Another operation for this candidate is in progress. Try again.';
 $string['pluginname'] = 'FAI CRM integration';
-$string['privacy:metadata'] = 'The FAI CRM integration plugin does not store any personal data. It only exposes web service functions that read and write data through the standard Moodle APIs.';
+$string['prazoinvalido'] = 'The deadline must be a valid date in the format YYYY-MM-DD.';
+$string['prazonopassado'] = 'The deadline cannot be in the past.';
+$string['privacy:metadata:preference:novatentativa'] = 'Records an extra quiz attempt released for the user by the CRM: the attempts and closing date of the user override before the release and the values the release set, so that cancelling it restores them.';
+$string['provaencerrada'] = 'The quiz is closed: provide a deadline for the new attempt.';
+$string['semexcecao'] = 'There is no extra attempt released for this candidate.';
 $string['servicenotfound'] = 'The external service "{$a}" was not found. Is the local_faicrm plugin installed (Site administration > Notifications)?';
 $string['studentrolenotfound'] = 'The role with shortname "student" was not found.';
+$string['tentativaemandamento'] = 'The candidate has an attempt in progress.';
+$string['tentativajainiciada'] = 'The candidate has already started the extra attempt.';

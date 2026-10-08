@@ -1,0 +1,23 @@
+meta {
+  name: 10b Listar só cursos visíveis
+  type: http
+  seq: 16
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_listar_cursos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "pagina": 1,
+    "visivel": true
+  }
+}
+
+docs {
+  Só os cursos visíveis (`"visivel": false` lista só os ocultos).
+  Resposta esperada: 200 com os cursos que têm `visivel: true`.
+}

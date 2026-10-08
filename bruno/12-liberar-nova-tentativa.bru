@@ -1,0 +1,25 @@
+meta {
+  name: 12 Liberar nova tentativa
+  type: http
+  seq: 18
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_liberar_nova_tentativa
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "quizid": 1,
+    "userid": 72,
+    "prazo": "2026-12-31"
+  }
+}
+
+docs {
+  Libera uma tentativa a mais da prova só para a Maria, até 31/12/2026.
+  Resposta esperada: 200 `{"quizid":1,"userid":72,"tentativaspermitidas":2,"prazo":"2026-12-31T23:59:59-03:00"}`.
+  Para dar 200, a Maria precisa estar matriculada (03) e já ter finalizado a prova (rode antes `simular_prova.php --username=12345678900 --acertos=2`); sem prova finalizada, a resposta é 409 "O candidato ainda pode fazer a prova."
+}

@@ -35,7 +35,7 @@ Na raiz do Moodle, como o usuário do servidor web:
 sudo -u www-data php local/faicrm/cli/configurar.php --gerar-token --ip=<IP do backend do CRM> --validade-dias=365
 ```
 
-O script é idempotente (pode rodar de novo sem duplicar nada). Ele liga web services, o protocolo REST e a conclusão de curso; cria o papel `integracaocrm` (só atribui Estudante) e o usuário técnico `ws_crm` (senha aleatória, nunca exibida); autoriza o `ws_crm` no serviço `crm_vestibular_fai`; e, com `--gerar-token`, **imprime o token uma única vez** (não grava em arquivo: copie e guarde em local seguro). Ele **não** altera a política de senha nem cria cursos. Rodar de novo **sem** `--gerar-token` não cria token.
+O script é idempotente (pode rodar de novo sem duplicar nada). Ele liga web services, o protocolo REST e a conclusão de curso; cria o papel `integracaocrm` (só atribui Estudante; inclui a capability `mod/quiz:manageoverrides`, usada para liberar nova tentativa só de um candidato) e o usuário técnico `ws_crm` (senha aleatória, nunca exibida); autoriza o `ws_crm` no serviço `crm_vestibular_fai`; e, com `--gerar-token`, **imprime o token uma única vez** (não grava em arquivo: copie e guarde em local seguro). Ele **não** altera a política de senha nem cria cursos. Rodar de novo **sem** `--gerar-token` não cria token.
 
 Sobre o `--ip`:
 

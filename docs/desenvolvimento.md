@@ -56,7 +56,17 @@ Ao subir, o `setup.php` configura web services, o usuário técnico `ws_crm`, o 
 *Dados fixos (já existem no Moodle local):* **Maria da Silva** (userid 72, username `12345678900`, `maria@email.com`) e **João Santos** (userid 73, `98765432100`, `joao@email.com`), curso 2. A **Ana Souza** (`11122233344`) não existe: é criada pelo `02`. Se recriar o ambiente do zero, crie a Maria e o João de novo e ajuste os `userid` nos corpos.
 
 **Ordem (já na sequência certa, de cima para baixo):**
-`01` localizar a Maria (200) → `02` criar a Ana (200 na 1ª vez, 409 depois) → `02b` papel não permitido (403) → `03` matricular a Maria (204) → `03b` matricular de novo (409) → `04` resultados → `04b` página inválida (400) → `04c` provas em 07/10/2026 → `04d` provas no período → `04e` data sem provas (`total: 0`) → `04f` data inválida (400) → `04g` `porpagina` não aceito (400) → `05` conclusão da Maria → `06` notas da Maria → `07` desmatricular a Maria (204) → `07b` desmatricular de novo (404) → `08` matricular o João com `roleid` 5 (204) → `09` desmatricular o João (204, limpeza) → `95` campo obrigatório (400) → `96` curso inexistente (404) → `97` candidato duplicado (409) → `98` JSON inválido (400) → `99` token inválido (401).
+`01` localizar a Maria (200) → `02` criar a Ana (200 na 1ª vez, 409 depois) → `02b` papel não permitido (403) → `03` matricular a Maria (204) → `03b` matricular de novo (409) → `04` resultados → `04b` página inválida (400) → `04c` provas em 07/10/2026 → `04d` provas no período → `04e` data sem provas (`total: 0`) → `04f` data inválida (400) → `04g` `porpagina` não aceito (400) → `05` conclusão da Maria → `06` notas da Maria → **recaptação e catálogo:** `10` listar cursos → `10b` só os visíveis → `11` provas do curso 2 → `12` liberar nova tentativa da Maria (prazo 2026-12-31) → `12b` liberar de novo (409) → `13` cancelar a nova tentativa (204) → `13b` cancelar sem exceção (404) → `14` desmatricular a Maria (204) → `14b` desmatricular de novo (404) → `15` matricular o João com `roleid` 5 (204) → `16` desmatricular o João (204, limpeza) → `95` campo obrigatório (400) → `96` curso inexistente (404) → `97` candidato duplicado (409) → `98` JSON inválido (400) → `99` token inválido (401).
+
+*Recaptação (`12` a `13b`):* a prova local permite **uma** tentativa (`attempts = 1`, como num vestibular real). Para o `12` dar 200, a Maria precisa estar matriculada (o `03` faz isso) e ter **finalizado** a prova; faça uma vez, antes de rodar a coleção:
+```powershell
+docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=12345678900 --acertos=2
+```
+Sem prova finalizada, o `12` responde 409 "O candidato ainda pode fazer a prova." e o `13` responde 404. Com a prova feita, a coleção roda quantas vezes quiser: o `12` libera, o `12b` dá 409, o `13` cancela (204) e o `13b` dá 404. Para ver o fluxo completo: depois do `12`, refaça a prova pelo navegador (usuário e senha `12345678900`) ou com o simulador, **mantendo a tentativa anterior**:
+```powershell
+docker compose exec -u www-data moodle php /opt/fai/simular_prova.php --username=12345678900 --acertos=4 --manter
+```
+Os resultados (`04`) passam a mostrar `tentativas: 2` e a nota pela regra da prova (maior nota). Sem `--manter`, o simulador apaga as tentativas anteriores. Depois dessa demonstração, o `13` dá 409 ("já iniciou"); para voltar ao estado inicial rode o simulador sem `--manter`, e apague a exceção se sobrar (`DELETE FROM mdl_quiz_overrides`).
 
 Como as datas dos filtros (`04c`, `04d`) estão escritas no corpo, ajuste-as se quiser outro período. Para o `04c` trazer alguém, é preciso que alguém tenha feito a prova nesse dia (`simular_prova.php` ou a prova no navegador):
 ```powershell

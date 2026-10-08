@@ -40,7 +40,7 @@ Content-Type: application/json
 
 `pagina` (padrão 1) é opcional; cada página traz 100 candidatos. Para ler todos os candidatos, repita a chamada de `pagina` 1 até `totalpaginas`. As datas (`datamatricula`, `dataprova`, `dataconclusao`) vêm em ISO 8601 ou `null`. Para listar só quem fez a prova num período, envie `dataprovade` e/ou `dataprovaate` (somente data, `AAAA-MM-DD`).
 
-Matricular quem já está matriculado devolve 409, e desmatricular quem não está devolve 404. O contrato completo (todas as operações, exemplos e erros) está em [docs/openapi.yaml](docs/openapi.yaml).
+Matricular quem já está matriculado devolve 409, e desmatricular quem não está devolve 404. Também é possível listar cursos e provas e **liberar uma nova tentativa da prova para um candidato** (recaptação). O contrato completo (todas as operações, exemplos e erros) está em [docs/openapi.yaml](docs/openapi.yaml).
 
 Os erros vêm prontos para exibir na tela, em português e com o status HTTP adequado:
 

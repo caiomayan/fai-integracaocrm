@@ -1,0 +1,23 @@
+meta {
+  name: 13 Cancelar nova tentativa
+  type: http
+  seq: 20
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_cancelar_nova_tentativa
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "quizid": 1,
+    "userid": 72
+  }
+}
+
+docs {
+  Desfaz a liberação da Maria, que ainda não iniciou a nova tentativa.
+  Resposta esperada: 204, sem corpo (404 "Não há nova tentativa liberada para este candidato." se o 12 não liberou nada).
+}

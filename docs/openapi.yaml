@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.8.2
+  version: 1.8.4
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao

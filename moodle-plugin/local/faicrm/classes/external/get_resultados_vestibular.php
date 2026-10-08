@@ -41,9 +41,8 @@ require_once($CFG->dirroot . '/grade/querylib.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class get_resultados_vestibular extends external_api {
-
     /** Fixed page size (RF-14): not a parameter. */
-    const PORPAGINA = 100;
+    public const PORPAGINA = 100;
 
     /**
      * Describes the parameters.
@@ -56,9 +55,14 @@ class get_resultados_vestibular extends external_api {
             'pagina' => new external_value(PARAM_INT, 'Page number, starting at 1', VALUE_DEFAULT, 1, NULL_NOT_ALLOWED),
             'dataprovade' => new external_value(PARAM_RAW, 'Only candidates whose last finished attempt is at or after this ' .
                 'date (YYYY-MM-DD, server time zone; from 00:00:00)', VALUE_DEFAULT, '', NULL_NOT_ALLOWED),
-            'dataprovaate' => new external_value(PARAM_RAW, 'Only candidates whose last finished attempt is at or before this ' .
+            'dataprovaate' => new external_value(
+                PARAM_RAW,
+                'Only candidates whose last finished attempt is at or before this ' .
                 'date (YYYY-MM-DD, server time zone; until 23:59:59 of the day)',
-                VALUE_DEFAULT, '', NULL_NOT_ALLOWED),
+                VALUE_DEFAULT,
+                '',
+                NULL_NOT_ALLOWED
+            ),
         ]);
     }
 
@@ -71,8 +75,10 @@ class get_resultados_vestibular extends external_api {
      * @return int Timestamp.
      */
     protected static function parse_date(string $value, string $name, bool $endofday): int {
-        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', trim($value), $m) ||
-                !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+        if (
+            !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', trim($value), $m) ||
+                !checkdate((int) $m[2], (int) $m[3], (int) $m[1])
+        ) {
             throw new invalid_parameter_exception($name . ' format');
         }
         $date = new \DateTime('now', \core_date::get_server_timezone_object());
@@ -105,8 +111,12 @@ class get_resultados_vestibular extends external_api {
      * @param string $dataprovaate Optional upper bound for the exam date.
      * @return array Page metadata and the list of results ordered by lastname, firstname, id.
      */
-    public static function execute(int $courseid, int $pagina = 1,
-            string $dataprovade = '', string $dataprovaate = ''): array {
+    public static function execute(
+        int $courseid,
+        int $pagina = 1,
+        string $dataprovade = '',
+        string $dataprovaate = ''
+    ): array {
         global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
@@ -181,7 +191,10 @@ class get_resultados_vestibular extends external_api {
             "SELECT DISTINCT u.id, u.username, u.firstname, u.lastname, u.email
                $fromwhere
            ORDER BY u.lastname, u.firstname, u.id",
-            $sqlparams, ($pagina - 1) * $porpagina, $porpagina);
+            $sqlparams,
+            ($pagina - 1) * $porpagina,
+            $porpagina
+        );
         if (empty($users)) {
             return $page;
         }
@@ -198,10 +211,13 @@ class get_resultados_vestibular extends external_api {
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
               WHERE e.courseid = :ecourse AND ue.userid $insql
-           GROUP BY ue.userid", ['ecourse' => $courseid] + $inparams);
+           GROUP BY ue.userid",
+            ['ecourse' => $courseid] + $inparams
+        );
         $attempts = $DB->get_records_sql(
             "SELECT lpa.userid, lpa.lastfinish FROM ($lastattempt) lpa WHERE lpa.userid $insql",
-            ['qcourse' => $courseid] + $inparams);
+            ['qcourse' => $courseid] + $inparams
+        );
 
         foreach ($users as $user) {
             $nota = null;
@@ -249,8 +265,13 @@ class get_resultados_vestibular extends external_api {
                     'lastname' => new external_value(PARAM_NOTAGS, 'Last name'),
                     'email' => new external_value(PARAM_RAW, 'Email address'),
                     'courseid' => new external_value(PARAM_INT, 'Course id'),
-                    'nota' => new external_value(PARAM_FLOAT, 'Course total (raw value), null when not graded yet',
-                        VALUE_REQUIRED, null, NULL_ALLOWED),
+                    'nota' => new external_value(
+                        PARAM_FLOAT,
+                        'Course total (raw value), null when not graded yet',
+                        VALUE_REQUIRED,
+                        null,
+                        NULL_ALLOWED
+                    ),
                     'concluido' => new external_value(PARAM_BOOL, 'Whether the user has completed the course'),
                     'datamatricula' => $date('Enrolment date (ISO 8601), null when none'),
                     'dataprova' => $date('End of the last finished quiz attempt (ISO 8601), null when none'),

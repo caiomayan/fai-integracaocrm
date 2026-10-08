@@ -105,7 +105,7 @@ Exemplo (JSON da resposta REST):
 - O endpoint nativo form-urlencoded continua funcionando (compatibilidade).
 
 ## Contrato — erros do adaptador (RF-10)
-Como funciona (T14): o adaptador usa uma subclasse do servidor nativo (`local_faicrm_rest_json_server extends webservice_rest_server`) que só sobrescreve `send_error()` (recebe a **exceção original**, com `errorcode` e `debuginfo`, independente do nível de debug do site) e marca a fase de `authenticate_user()`. Autenticação, permissões, validação e execução continuam nativas. Falhas antes do servidor (setup do Moodle, `raise_early_ws_exception`) e erros fatais do PHP (shutdown) usam o mesmo formato. Errorcodes confirmados no Moodle 4.5.14:
+Como funciona (T14): o adaptador usa uma subclasse do servidor nativo (`local_faicrm\rest_json\server extends webservice_rest_server`, em `classes/rest_json/` desde a 1.7.1) que só sobrescreve `send_error()` (recebe a **exceção original**, com `errorcode` e `debuginfo`, independente do nível de debug do site) e marca a fase de `authenticate_user()`. Autenticação, permissões, validação e execução continuam nativas. Falhas antes do servidor (setup do Moodle, `raise_early_ws_exception`) e erros fatais do PHP (shutdown) usam o mesmo formato. Errorcodes confirmados no Moodle 4.5.14:
 
 | Situação | errorcode / origem (Moodle 4.5) | HTTP | message |
 |---|---|---|---|

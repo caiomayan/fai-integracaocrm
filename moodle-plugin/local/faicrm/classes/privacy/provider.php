@@ -14,17 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace local_faicrm\privacy;
+
 /**
- * English language strings for local_faicrm.
+ * Privacy provider for local_faicrm: the plugin does not store personal data.
  *
  * @package    local_faicrm
  * @copyright  2026 FAI
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-defined('MOODLE_INTERNAL') || die();
-
-$string['pluginname'] = 'FAI CRM integration';
-$string['privacy:metadata'] = 'The FAI CRM integration plugin does not store any personal data. It only exposes web service functions that read and write data through the standard Moodle APIs.';
-$string['servicenotfound'] = 'The external service "{$a}" was not found. Is the local_faicrm plugin installed (Site administration > Notifications)?';
-$string['studentrolenotfound'] = 'The role with shortname "student" was not found.';
+class provider implements \core_privacy\local\metadata\null_provider {
+    /**
+     * Explains why this plugin stores no personal data.
+     *
+     * @return string language string identifier
+     */
+    public static function get_reason(): string {
+        return 'privacy:metadata';
+    }
+}

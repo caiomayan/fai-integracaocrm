@@ -4,8 +4,9 @@
 // Executado pelo entrypoint a cada subida (como www-data):  php /opt/fai/setup.php
 // Pode ser executado manualmente quantas vezes quiser — só cria o que estiver faltando.
 //
-// Faz:  configs de WS/conclusão/senha · papel integracaocrm · usuário ws_crm · autorização no
-//       serviço crm_vestibular_fai · token permanente · curso VEST20271 + questionário + critério
+// Faz:  configuração da integração via \local_faicrm\setup\configurador (WS/REST/conclusão · papel
+//       integracaocrm · usuário ws_crm · autorização no serviço crm_vestibular_fai) · token permanente ·
+//       e o que é só de desenvolvimento: passwordpolicy=0 · curso VEST20271 + questionário + critério
 //       de conclusão · escreve /opt/fai/output/token.txt e ids.json.
 
 define('CLI_SCRIPT', true);
@@ -23,9 +24,6 @@ require_once($CFG->dirroot . '/completion/criteria/completion_criteria_activity.
 require_once($CFG->dirroot . '/lib/phpunit/classes/util.php'); // Data generators (como o tool_generator faz).
 
 const FAI_OUTPUT_DIR    = '/opt/fai/output';
-const FAI_SERVICE       = 'crm_vestibular_fai';
-const FAI_ROLE          = 'integracaocrm';
-const FAI_WSUSER        = 'ws_crm';
 const FAI_COURSE        = 'VEST20271';
 const FAI_COURSE_NAME   = 'Vestibular 2027.1';
 const FAI_QUIZ_NAME     = 'Prova Vestibular 2027.1';
@@ -46,152 +44,33 @@ function fail(string $msg): void {
 $syscontext = context_system::instance();
 
 // ---------------------------------------------------------------------------------------------
-// 1. Configurações do site.
+// 1 a 4. Configuração da integração (papel, usuário ws_crm, serviço, autorização): classe do plugin,
+//        a mesma usada por local/faicrm/cli/configurar.php em produção.
 // ---------------------------------------------------------------------------------------------
-$configs = [
-    'enablewebservices'    => 1,
-    'webserviceprotocols'  => 'rest',
-    'enablecompletion'     => 1,
-    'passwordpolicy'       => 0,
-];
-foreach ($configs as $name => $value) {
-    if ((string) get_config('core', $name) !== (string) $value) {
-        set_config($name, $value);
-        out("config {$name}={$value} (alterado)");
-    }
-}
-out('configs ok (enablewebservices, webserviceprotocols=rest, enablecompletion, passwordpolicy=0)');
+$configurador = new \local_faicrm\setup\configurador('out');
 
-// ---------------------------------------------------------------------------------------------
-// 2. Papel de sistema integracaocrm.
-// ---------------------------------------------------------------------------------------------
-$capabilities = [
-    'webservice/rest:use',
-    'moodle/user:create',
-    'moodle/user:viewdetails',
-    'moodle/user:viewalldetails',
-    'moodle/user:viewhiddendetails',
-    'moodle/course:view',
-    'moodle/course:viewhiddencourses',
-    'moodle/course:viewparticipants',
-    'moodle/course:enrolreview',
-    'enrol/manual:enrol',
-    'enrol/manual:unenrol',
-    'moodle/role:assign',
-    'moodle/grade:viewall',
-    'gradereport/user:view',
-    'moodle/course:viewhiddenactivities',
-    'mod/quiz:view',
-    'mod/quiz:viewreports',
-    'report/completion:view',
-    'moodle/site:accessallgroups',
-];
-
-$role = $DB->get_record('role', ['shortname' => FAI_ROLE]);
-if (!$role) {
-    $roleid = create_role('Integração CRM', FAI_ROLE,
-        'Papel técnico do usuário ws_crm, usado pela integração CRM ↔ Moodle (serviço crm_vestibular_fai).');
-    out('papel ' . FAI_ROLE . " criado (id={$roleid})");
-} else {
-    $roleid = (int) $role->id;
-}
-if (array_values(get_role_contextlevels($roleid)) !== [CONTEXT_SYSTEM]) {
-    set_role_contextlevels($roleid, [CONTEXT_SYSTEM]);
-}
-$capchanged = 0;
-$existingcaps = $DB->get_records_menu('role_capabilities',
-    ['roleid' => $roleid, 'contextid' => $syscontext->id], '', 'capability, permission');
-foreach ($capabilities as $cap) {
-    if (!get_capability_info($cap)) {
-        out("AVISO: capability {$cap} não existe nesta versão do Moodle — ignorada");
-        continue;
-    }
-    if (($existingcaps[$cap] ?? null) != CAP_ALLOW) {
-        assign_capability($cap, CAP_ALLOW, $roleid, $syscontext->id, true);
-        $capchanged++;
-    }
-}
-if ($capchanged) {
-    $syscontext->mark_dirty();
-}
-$studentroleid = (int) $DB->get_field('role', 'id', ['shortname' => 'student'], MUST_EXIST);
-if (!$DB->record_exists('role_allow_assign', ['roleid' => $roleid, 'allowassign' => $studentroleid])) {
-    core_role_set_assign_allowed($roleid, $studentroleid);
-    out('papel ' . FAI_ROLE . ' agora pode atribuir student');
-}
-out('papel ' . FAI_ROLE . " ok (id={$roleid}, capabilities alteradas={$capchanged})");
-
-// ---------------------------------------------------------------------------------------------
-// 3. Usuário técnico ws_crm + atribuição do papel no contexto de sistema.
-// ---------------------------------------------------------------------------------------------
-$wsuser = $DB->get_record('user', ['username' => FAI_WSUSER, 'mnethostid' => $CFG->mnet_localhost_id, 'deleted' => 0]);
-if (!$wsuser) {
-    $newuser = (object) [
-        'username'   => FAI_WSUSER,
-        'auth'       => 'manual',
-        'password'   => generate_password(24) . 'Aa1!',
-        'firstname'  => 'Integração',
-        'lastname'   => 'CRM',
-        'email'      => 'ws_crm@localhost.local',
-        'confirmed'  => 1,
-        'mnethostid' => $CFG->mnet_localhost_id,
-        'lang'       => $CFG->lang ?? 'en',
-    ];
-    $userid = user_create_user($newuser, true, false);
-    $wsuser = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
-    out(FAI_WSUSER . " criado (id={$userid})");
-}
-$wsuserid = (int) $wsuser->id;
-if ($wsuser->suspended) {
-    $DB->set_field('user', 'suspended', 0, ['id' => $wsuserid]);
-    out(FAI_WSUSER . ' estava suspenso — reativado');
-}
-if (!user_has_role_assignment($wsuserid, $roleid, $syscontext->id)) {
-    role_assign($roleid, $wsuserid, $syscontext->id);
-    out('papel ' . FAI_ROLE . ' atribuído a ' . FAI_WSUSER . ' (sistema)');
-}
-out(FAI_WSUSER . " ok (id={$wsuserid})");
-
-// ---------------------------------------------------------------------------------------------
-// 4. Serviço (declarado pelo plugin local_faicrm), autorização e token.
-// ---------------------------------------------------------------------------------------------
-$service = $DB->get_record('external_services', ['shortname' => FAI_SERVICE]);
-if (!$service) {
-    fail('serviço "' . FAI_SERVICE . '" não encontrado em external_services. ' .
-        'O plugin local_faicrm (moodle-plugin/local/faicrm, montado em /var/www/html/local/faicrm) ' .
-        'está presente e instalado? Rode: php admin/cli/upgrade.php --non-interactive');
-}
-if (!$service->enabled) {
-    $DB->set_field('external_services', 'enabled', 1, ['id' => $service->id]);
-    $service->enabled = 1;
-    out('serviço ' . FAI_SERVICE . ' estava desabilitado — habilitado');
-}
-if (!$DB->record_exists('external_services_users', ['externalserviceid' => $service->id, 'userid' => $wsuserid])) {
-    $DB->insert_record('external_services_users', (object) [
-        'externalserviceid' => $service->id,
-        'userid'            => $wsuserid,
-        'iprestriction'     => null,
-        'validuntil'        => null,
-        'timecreated'       => time(),
-    ]);
-    out(FAI_WSUSER . ' autorizado no serviço ' . FAI_SERVICE);
+// Só desenvolvimento: política de senha desligada (aceita senha = CPF numérico nos testes locais).
+if ((string) get_config('core', 'passwordpolicy') !== '0') {
+    set_config('passwordpolicy', 0);
+    out('config passwordpolicy=0 (alterado)');
 }
 
-$now = time();
-$tokens = $DB->get_records_select('external_tokens',
-    'userid = :userid AND externalserviceid = :serviceid AND tokentype = :tokentype
-     AND (validuntil = 0 OR validuntil IS NULL OR validuntil > :now)',
-    ['userid' => $wsuserid, 'serviceid' => $service->id, 'tokentype' => EXTERNAL_TOKEN_PERMANENT, 'now' => $now],
-    'timecreated ASC, id ASC');
-if ($tokens) {
-    $token = reset($tokens)->token;
+try {
+    $configurador->ligar_servicos();
+    $roleid = $configurador->garantir_papel();
+    $wsuserid = $configurador->garantir_usuario($roleid);
+    $service = $configurador->autorizar_servico($wsuserid);
+} catch (moodle_exception $e) {
+    fail($e->getMessage() . ' Rode: php admin/cli/upgrade.php --non-interactive');
+}
+
+// Token permanente: reaproveita o existente (o mesmo de output/token.txt) ou gera um.
+$token = $configurador->token_existente($service, $wsuserid);
+if ($token !== null) {
     out('token permanente existente reaproveitado');
 } else {
-    $token = \core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $wsuserid, $syscontext, 0, '',
-        'CRM Vestibular FAI (setup local)');
-    out('token permanente gerado');
+    $token = $configurador->gerar_token($service, $wsuserid, '', 0, 'CRM Vestibular FAI (setup local)');
 }
-out('serviço ' . FAI_SERVICE . " ok (id={$service->id})");
 
 // ---------------------------------------------------------------------------------------------
 // 5. Curso VEST20271.

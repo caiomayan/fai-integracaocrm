@@ -14,17 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace local_faicrm\rest_json;
+
 /**
- * English language strings for local_faicrm.
+ * Conflito de estado da matrícula (RF-13), traduzido pelo handler::map().
  *
  * @package    local_faicrm
  * @copyright  2026 FAI
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+class conflict_exception extends \Exception {
+    /** @var string código interno (alreadyenrolled | notenrolled) */
+    public $errorcode;
 
-defined('MOODLE_INTERNAL') || die();
-
-$string['pluginname'] = 'FAI CRM integration';
-$string['privacy:metadata'] = 'The FAI CRM integration plugin does not store any personal data. It only exposes web service functions that read and write data through the standard Moodle APIs.';
-$string['servicenotfound'] = 'The external service "{$a}" was not found. Is the local_faicrm plugin installed (Site administration > Notifications)?';
-$string['studentrolenotfound'] = 'The role with shortname "student" was not found.';
+    /**
+     * Cria o conflito com o código interno.
+     *
+     * @param string $errorcode código interno
+     */
+    public function __construct(string $errorcode) {
+        parent::__construct($errorcode);
+        $this->errorcode = $errorcode;
+    }
+}

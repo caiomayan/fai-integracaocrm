@@ -146,6 +146,8 @@ São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 4
 
 As datas vêm em ISO 8601 com fuso. Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`.
 
+> **Rematrícula:** se um candidato for desmatriculado e matriculado de novo, o Moodle mantém a conclusão e a tentativa antigas. Ele pode voltar com `concluido: true` e `dataprova` preenchida, mas com `nota: null`. Esse é o comportamento nativo do Moodle.
+
 ## Consultas auxiliares (nativas do Moodle)
 
 Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
@@ -174,3 +176,5 @@ Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
 - `courseid` do Vestibular 2027.1 e id da prova.
 - Política de senha (senha = CPF pode ser recusada).
 - Se o servidor repassa o header `Authorization` ao PHP.
+- O CRM deve chamar exatamente a URL oficial do Moodle (`wwwroot`): com outro host, o Moodle redireciona (303) com uma página HTML em vez de JSON.
+- Se o token tiver restrição de IP, as chamadas precisam sair do IP liberado (senão: 403).

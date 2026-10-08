@@ -22,6 +22,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: Ambiente local (Docker)
+  - url: https://moodle.fai.example
+    description: Produção (URL a definir com a FAI)
 tags:
   - name: Candidatos
     description: Localizar e cadastrar candidatos.

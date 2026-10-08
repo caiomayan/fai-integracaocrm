@@ -3,3 +3,4 @@ output/
 .env
 bruno/collection.bru
 .maestri/
+dist/

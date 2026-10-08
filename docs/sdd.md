@@ -15,11 +15,13 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 - [OpenAPI](openapi.yaml)
 - [Integração para o CRM](integracao-crm.md)
 - [Desenvolvimento (ambiente local e testes)](desenvolvimento.md)
+- [Implantação em homologação e produção](implantacao-producao.md)
 
 ## Specs
 | ID | Spec | Status |
 |---|---|---|
 | 001 | [Ambiente de desenvolvimento](specs/001-ambiente-dev/spec.md) | ✅ concluída |
+| 003 | [Prontidão para produção](specs/003-prontidao-producao/requirements.md) · guia: [implantacao-producao.md](implantacao-producao.md) | ✅ concluída (pronto para homologação) |
 | 002 | [Integração CRM ↔ Moodle (Vestibular)](specs/002-integracao-crm/requirements.md) · guia: [integracao-crm.md](integracao-crm.md) | ✅ implementada (aguarda revisão) |
 
 ## Pendências externas (validar com Luciano / FAI)

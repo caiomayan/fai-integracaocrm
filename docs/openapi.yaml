@@ -46,8 +46,10 @@ paths:
       operationId: localizarCandidato
       summary: Localizar candidato
       description: |
-        Procura candidatos por um campo (`username`, `email`, `id` ou `idnumber`). Lista vazia (`[]`) quando não existe.
-        Função nativa `core_user_get_users_by_field`. O CRM deve localizar antes de criar.
+        Procura candidatos por um campo (`username`, `idnumber` ou `id`). Lista vazia (`[]`) quando não existe.
+        Função nativa `core_user_get_users_by_field`. O CRM deve localizar antes de criar, pelo CPF (`username` ou
+        `idnumber`) ou pelo `id`. A busca por `email` não é suportada: responde `[]` mesmo que a conta exista (o usuário
+        técnico não vê e-mails, por privacidade), e o `email` não vem na resposta.
       requestBody:
         required: true
         content:
@@ -58,16 +60,24 @@ paths:
               properties:
                 field:
                   type: string
-                  enum: [id, idnumber, username, email]
+                  enum: [id, idnumber, username]
                   description: Campo da busca.
                 values:
                   type: array
                   items:
                     type: string
                   description: Valores procurados.
-            example:
-              field: username
-              values: ["12345678900"]
+            examples:
+              porUsername:
+                summary: Por username (CPF)
+                value:
+                  field: username
+                  values: ["12345678900"]
+              porId:
+                summary: Por id
+                value:
+                  field: id
+                  values: ["72"]
       responses:
         '200':
           description: Candidatos encontrados (ou lista vazia).
@@ -81,11 +91,11 @@ paths:
                 encontrado:
                   summary: Candidato encontrado (campos omitidos)
                   value:
-                    - id: 14
-                      username: "55500000011"
-                      firstname: T
-                      lastname: a1
-                      fullname: T a1
+                    - id: 72
+                      username: "12345678900"
+                      firstname: Maria
+                      lastname: da Silva
+                      fullname: Maria da Silva
                       auth: manual
                       suspended: false
                       confirmed: true

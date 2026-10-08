@@ -34,6 +34,16 @@ Fluxo: CRM → cria/localiza usuário → matricula no curso → candidato faz a
 - **RNF-04** Token só no backend (Bruno/CRM), nunca no navegador do candidato.
 
 ## Critérios de aceite
+
+> **Leitura vigente (conciliação de 08/10/2026, auditoria de cliente):** os critérios abaixo são históricos, na ordem em que foram escritos. Onde houver conflito, valem os requisitos mais novos:
+> | Critério antigo | O que vale hoje |
+> |---|---|
+> | CA-02, CA-06, CA-09, CA-11 citam `errorcode` nativo (`invalidtoken`, `accessexception`, `invalidjson`…) | **RF-10:** no endpoint JSON, erro = só `{"message"}` + status HTTP (ex.: token inválido → 401). Os errorcodes nativos valem só no endpoint nativo (CA-10). |
+> | CA-03 / CA-12: matrícula devolve `null` ou 204 | **RF-09 + RF-13:** 204; matrícula repetida → 409; desmatrícula sem matrícula → 404. |
+> | CA-07: Bruno "usando só variáveis de ambiente" | **Decisão de 07/10 (coleção com JSON fixo):** requisições com JSON pronto, sem variáveis, testes ou scripts; token em Collection → Auth. |
+> | CA-15 / RF-11: `porpagina` escolhido pelo CRM (1–500) | **RF-14:** 100 por página **fixo**; enviar `porpagina` → 400. |
+> | CA-09: `[]` tratado como `{}` (aceito no T11) | **A-02 (spec 005):** a raiz precisa ser objeto; `[]` → 400. |
+> | Contrato antigo: "busca por e-mail funciona, mas o e-mail não vem na resposta" | **A-01 (spec 005, final):** busca por e-mail **não é oferecida**; localizar por `username` (CPF), `idnumber` ou `id`. |
 - **CA-01** Após subir o ambiente, `output/token.txt` contém um token que funciona em `/webservice/rest/server.php`.
 - **CA-02** Criar candidato devolve `[{id, username}]`; criar de novo com o mesmo username devolve erro nativo (sem duplicar).
 - **CA-03** Matricular com o id devolvido retorna `null` (sucesso nativo) e o candidato aparece em Participantes como Estudante.

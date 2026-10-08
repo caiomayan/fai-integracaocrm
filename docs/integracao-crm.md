@@ -52,9 +52,11 @@ Corpo:
 ```json
 {"field": "username", "values": ["12345678900"]}
 ```
-Resposta se existe (campos adicionais omitidos):
+`field` pode ser `username`, `idnumber` ou `id`. A busca por `email` **não é suportada**: responde `[]` mesmo que a conta exista (o usuário técnico não tem permissão para ver e-mails, por privacidade). O CRM localiza pelo **CPF** (`username` ou `idnumber`) ou pelo `id`.
+
+Resposta se existe (campos adicionais omitidos; o `email` não vem):
 ```json
-[{"id": 123, "username": "12345678900", "firstname": "Maria", "lastname": "da Silva", "email": "maria@email.com"}]
+[{"id": 123, "username": "12345678900", "idnumber": "12345678900", "firstname": "Maria", "lastname": "da Silva"}]
 ```
 Se não existe: `[]`.
 

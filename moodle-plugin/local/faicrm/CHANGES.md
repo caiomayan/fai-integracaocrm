@@ -1,5 +1,14 @@
 # Histórico de versões — local_faicrm
 
+## 1.8.4 (2026100814)
+- A-01 (decisão final, spec 005): sai `moodle/site:viewuseridentity` do papel `integracaocrm` (volta a 20 capabilities). Ela expunha o e-mail (e os campos de "Mostrar identidade do usuário") de qualquer conta, inclusive da equipe. A busca por e-mail não é oferecida (responde `[]`); o CRM localiza pelo CPF (`username`/`idnumber`) ou pelo `id`. O `configurar.php` retira essa permissão de quem recebeu a 1.8.3 (rode-o depois do upgrade) e o `verificar.php` acusa FALHA se ela estiver no papel. Sai o aviso de `showuseridentity`.
+
+## 1.8.3 (2026100813)
+Correções da auditoria de cliente (spec 005):
+- A-01: o papel `integracaocrm` ganha `moodle/site:viewuseridentity` (21 capabilities). Sem ela, `core_user_get_users_by_field` com `field=email` devolvia `[]` (o core só devolve o usuário se o campo pesquisado estiver visível). O e-mail passa a vir na resposta. `verificar.php` avisa se `email` não estiver em `showuseridentity`. Rode `cli/configurar.php` depois do upgrade.
+- A-02: a raiz do corpo JSON precisa ser um objeto: `[]`, listas, escalares e `null` → 400 "O corpo da requisição deve ser um objeto JSON válido." (corpo vazio e `{}` seguem como sem parâmetros).
+- A-03: o `cancelar` desfaz só a última liberação e restaura a exceção imediatamente anterior a ela (inclusive a criada por uma liberação anterior do CRM). Antes, voltava ao estado original da FAI.
+
 ## 1.8.2 (2026100812)
 - `cancelar_nova_tentativa` desfaz exatamente o que o `liberar` fez: o `liberar` passa a registrar, numa preferência do candidato (`local_faicrm_novatentativa_<quizid>`), como a exceção estava antes (existia?, attempts, fechamento) e o que ele gravou; o `cancelar` volta attempts e fechamento a esses valores (removendo a exceção quando ela não existia) e mantém um fechamento que a FAI tenha mudado depois. Antes, um prazo da FAI na exceção se perdia ou era trocado pelo prazo do CRM depois do cancelamento.
 - Sem registro (liberação feita antes desta versão), o `cancelar` mantém o fechamento da exceção e só retira as tentativas.

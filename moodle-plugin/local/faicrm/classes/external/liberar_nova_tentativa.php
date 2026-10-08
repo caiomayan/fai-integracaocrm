@@ -127,14 +127,9 @@ class liberar_nova_tentativa extends external_api {
             if ($timeclose !== null) {
                 $data['timeclose'] = $timeclose;
             }
-            // What the override was before the CRM touched it, so that cancelar can restore it exactly. When the
-            // override is still the one written by an earlier release (nobody changed it since), that earlier
-            // baseline is kept; otherwise the current override (or its absence) is the baseline.
-            $state = util::get_release_state($quiz->id, $userid);
-            $continuing = $state && $existing && (int) $state->overrideid === (int) $existing->id
-                && util::override_value($existing->attempts) === util::override_value($state->set->attempts)
-                && util::override_value($existing->timeclose, true) === util::override_value($state->set->timeclose, true);
-            $prev = $continuing ? $state->prev : (object) [
+            // The override exactly as it is right before THIS release (or its absence), so that cancelar undoes only
+            // this release (RF-20b). If it came from an earlier release of the CRM, that is the state to go back to.
+            $prev = (object) [
                 'existed' => (bool) $existing,
                 'attempts' => $existing ? util::override_value($existing->attempts) : null,
                 'timeclose' => $existing ? util::override_value($existing->timeclose, true) : null,

@@ -1,5 +1,7 @@
 # 002 — Design
 
+> **Leitura vigente (08/10/2026):** este design é histórico e foi evoluindo por camadas. Onde houver conflito, valem a tabela "Leitura vigente" em [`requirements.md`](requirements.md) e as specs posteriores ([003](../003-prontidao-producao/requirements.md), [004](../004-nova-tentativa-e-catalogo/requirements.md), [005](../005-auditoria-cliente/requirements.md)). Em resumo: erros = `{message}` + status HTTP; 100 por página fixo; Bruno com JSON fixo; raiz do JSON precisa ser objeto; sem busca por e-mail; 20 capabilities. Os trechos marcados "Superado" ficam só como registro.
+
 ## Visão geral
 ```
 Bruno / CRM ──POST JSON──▶ /local/faicrm/rest_json.php?wsfunction=X   (Authorization: Bearer <token>)
@@ -44,6 +46,7 @@ Exemplo (JSON da resposta REST):
 ```
 
 ### Atualização RF-11: paginação (substitui a entrada e a saída acima)
+> **Superado pelo RF-14:** `porpagina` não é mais parâmetro; são 100 por página, fixo.
 - Parâmetros: `courseid` (PARAM_INT, obrigatório), `pagina` (PARAM_INT, `VALUE_DEFAULT` 1), `porpagina` (PARAM_INT, `VALUE_DEFAULT` 100, máximo 500). Valores fora da faixa → `invalid_parameter_exception`; o adaptador traduz para 400 com message em PT (ex.: "Dados inválidos: porpagina deve estar entre 1 e 500.").
 - Consulta: `count_role_users` (ou SQL equivalente) para o `total`; `get_role_users(..., sort 'u.lastname, u.firstname, u.id', limitfrom = (pagina-1)*porpagina, limitnum = porpagina)` para a página.
 - Nota: `grade_get_course_grades($courseid, <ids da página>)`.
@@ -72,7 +75,7 @@ Exemplo (JSON da resposta REST):
 ## Usuário técnico e papel
 - Usuário `ws_crm` (auth manual, senha aleatória, e-mail `ws_crm@localhost.local`).
 - Papel de sistema `integracaocrm` ("Integração CRM"), atribuído a `ws_crm` no contexto de sistema, com:
-  `webservice/rest:use, moodle/user:create, moodle/user:viewdetails, moodle/user:viewalldetails, moodle/user:viewhiddendetails, moodle/course:view, moodle/course:viewhiddencourses, moodle/course:viewparticipants, moodle/course:enrolreview, enrol/manual:enrol, enrol/manual:unenrol, moodle/role:assign, moodle/grade:viewall, gradereport/user:view, moodle/course:viewhiddenactivities, mod/quiz:view, mod/quiz:viewreports, mod/quiz:manageoverrides (spec 004), report/completion:view, moodle/site:accessallgroups`.
+  `webservice/rest:use, moodle/user:create, moodle/user:viewdetails, moodle/user:viewalldetails, moodle/user:viewhiddendetails, moodle/course:view, moodle/course:viewhiddencourses, moodle/course:viewparticipants, moodle/course:enrolreview, enrol/manual:enrol, enrol/manual:unenrol, moodle/role:assign, moodle/grade:viewall, gradereport/user:view, moodle/course:viewhiddenactivities, mod/quiz:view, mod/quiz:viewreports, mod/quiz:manageoverrides (spec 004), report/completion:view, moodle/site:accessallgroups` (20). Sem `moodle/site:viewuseridentity`: entrou na 1.8.3 e saiu na 1.8.4 (spec 005, A-01), porque expunha o e-mail de qualquer conta; busca por e-mail não é oferecida.
   Permitir que `integracaocrm` atribua `student` (`core_role_set_assign_allowed`).
 - Autorizado no serviço (`external_services_users`); token permanente gerado com `\core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $userid, context_system::instance())` — reaproveita o existente se houver.
 
@@ -146,6 +149,8 @@ Como funciona (T14): o adaptador usa uma subclasse do servidor nativo (`local_fa
 - O endpoint nativo `/webservice/rest/server.php` **não** muda (CA-10).
 
 ## Coleção Bruno
+> **Superado (07/10):** a coleção atual usa **JSON fixo**, sem `{{variáveis}}`, testes ou scripts, e o token fica em Collection → Auth. O texto abaixo é o histórico das versões anteriores. Veja `docs/desenvolvimento.md`.
+
 **(Atualizado — RF-07)** Todas as requisições usam o adaptador: `POST {{baseUrl}}/local/faicrm/rest_json.php?wsfunction=…`, `auth:bearer { token: {{token}} }`, `body:json`. Sem `wstoken`/`moodlewsrestformat` no corpo. Acrescentar `98-json-invalido.bru`. A descrição abaixo (form-urlencoded) vale só para o endpoint nativo.
 
 `POST {{baseUrl}}/webservice/rest/server.php`, body `form-urlencoded` com `wstoken={{token}}`, `wsfunction=…`, `moodlewsrestformat=json`.

@@ -94,12 +94,13 @@ if (is_string($raw) && strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
 if ($raw === false || trim($raw) === '') {
     $body = [];
 } else {
+    // A raiz precisa ser um objeto JSON ({} inclusive): rejeita listas (até []), escalares, null e JSON inválido
+    // (A-02). Decodificado como objeto, [] e {} se distinguem; depois, como array associativo para o $_POST.
     // Profundidade 32 sobra para as estruturas das funções do serviço.
-    $body = json_decode($raw, true, 32);
-    // Precisa ser objeto (ou {}): rejeita escalares, listas e JSON inválido.
-    if (!is_array($body) || ($body !== [] && array_is_list($body))) {
+    if (!(json_decode($raw, false, 32) instanceof stdClass)) {
         handler::fail(400, 'O corpo da requisição deve ser um objeto JSON válido.', 'invalidjson');
     }
+    $body = (array) json_decode($raw, true, 32);
 }
 unset($raw);
 handler::collect_passwords($body);

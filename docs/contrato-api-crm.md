@@ -54,9 +54,9 @@ Toda resposta traz o header `X-Request-Id`. Informe esse valor ao suporte para l
 ```json
 { "field": "username", "values": ["12345678900"] }
 ```
-`field` pode ser `username`, `email`, `idnumber` ou `id`.
+`field` pode ser `username`, `idnumber` ou `id`. A busca por `email` **não é suportada**: responde `[]` mesmo que a conta exista (o usuário técnico não tem permissão para ver e-mails, por privacidade). O CRM localiza pelo **CPF** (`username` ou `idnumber`) ou pelo `id`.
 
-**200**: lista dos encontrados; `[]` se não existe. Vêm também outros campos nativos (`fullname`, `suspended`, `lang`…). O e-mail não vem na resposta, mas dá para buscar por ele.
+**200**: lista dos encontrados; `[]` se não existe. Vêm também outros campos nativos (`fullname`, `suspended`, `lang`…); o `email` **não** vem. A exceção é nativa do Moodle: uma conta configurada para "mostrar o e-mail a todos" tem o e-mail visível para qualquer usuário logado, inclusive para a integração.
 ```json
 [{ "id": 72, "username": "12345678900", "idnumber": "12345678900", "firstname": "Maria", "lastname": "da Silva", "auth": "manual", "suspended": false }]
 ```
@@ -100,7 +100,7 @@ Toda resposta traz o header `X-Request-Id`. Informe esse valor ao suporte para l
 `roleid` é opcional; o padrão é Estudante. A integração só pode matricular como Estudante: outro papel devolve 403.
 
 **204**: matriculado, sem corpo.
-**409** "O candidato já está matriculado neste curso." Com vários itens, vale tudo ou nada: se um falhar, nenhum é matriculado.
+**409** "O candidato já está matriculado neste curso.": só quando ele já tem uma matrícula **manual ativa**. Uma matrícula manual **suspensa** é reativada (204), e uma matrícula por **outro método** (ex.: autoinscrição) não bloqueia: a matrícula manual é criada (204). Com vários itens, vale tudo ou nada: se um falhar, nenhum é matriculado.
 
 ## 4. Desmatricular — `enrol_manual_unenrol_users`
 

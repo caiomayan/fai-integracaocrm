@@ -68,6 +68,16 @@ class configurador {
         'moodle/site:accessallgroups',
     ];
 
+    /**
+     * Capabilities que o papel NÃO pode ter e que o configurador retira se encontrar (só estas).
+     *
+     * moodle/site:viewuseridentity entrou na 1.8.3 para a busca por e-mail e saiu na 1.8.4 (spec 005, A-01): com ela o
+     * token via o e-mail (e os campos de "Mostrar identidade do usuário") de qualquer conta, inclusive da equipe.
+     */
+    public const CAPABILITIES_REMOVIDAS = [
+        'moodle/site:viewuseridentity',
+    ];
+
     /** @var callable|null função que recebe cada mensagem de progresso */
     private $log;
 
@@ -166,6 +176,13 @@ class configurador {
             if (($existing[$cap] ?? null) != CAP_ALLOW) {
                 assign_capability($cap, CAP_ALLOW, $roleid, $syscontext->id, true);
                 $changed++;
+            }
+        }
+        foreach (self::CAPABILITIES_REMOVIDAS as $cap) {
+            if (array_key_exists($cap, $existing)) {
+                unassign_capability($cap, $roleid, $syscontext->id);
+                $changed++;
+                $this->out("capability {$cap} retirada do papel " . self::PAPEL . ' (não é mais necessária e expunha dados)');
             }
         }
         if ($changed) {

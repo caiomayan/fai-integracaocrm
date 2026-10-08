@@ -178,9 +178,18 @@ if (!$role) {
         'Capabilities do papel presentes (' . count(configurador::CAPABILITIES) . ')',
         'Capabilities ausentes no papel: ' . implode(', ', $missing)
     );
-    $extra = array_diff(array_keys(array_filter($caps, function ($permission) {
+    $allowed = array_keys(array_filter($caps, function ($permission) {
         return $permission == CAP_ALLOW;
-    })), configurador::CAPABILITIES);
+    }));
+    // Capabilities que expõem dados e não podem estar no papel (ex.: viewuseridentity, que mostrava o e-mail de
+    // qualquer conta): FALHA, pois contraria uma decisão de privacidade e se corrige rodando o configurar.php.
+    $forbidden = array_intersect($allowed, configurador::CAPABILITIES_REMOVIDAS);
+    faicrm_check(
+        !$forbidden,
+        'Papel sem capabilities proibidas',
+        'Papel com capability que expõe dados de qualquer conta: ' . implode(', ', $forbidden) . ' (rode cli/configurar.php)'
+    );
+    $extra = array_diff($allowed, configurador::CAPABILITIES, configurador::CAPABILITIES_REMOVIDAS);
     if ($extra) {
         faicrm_report('AVISO', 'Capabilities além das necessárias no papel (mínimo privilégio): ' . implode(', ', $extra));
     }

@@ -35,7 +35,7 @@ Na raiz do Moodle, como o usuário do servidor web:
 sudo -u www-data php local/faicrm/cli/configurar.php --gerar-token --ip=<IP do backend do CRM> --validade-dias=365
 ```
 
-O script é idempotente (pode rodar de novo sem duplicar nada). Ele liga web services, o protocolo REST e a conclusão de curso; cria o papel `integracaocrm` (só atribui Estudante; inclui a capability `mod/quiz:manageoverrides`, usada para liberar nova tentativa só de um candidato) e o usuário técnico `ws_crm` (senha aleatória, nunca exibida); autoriza o `ws_crm` no serviço `crm_vestibular_fai`; e, com `--gerar-token`, **imprime o token uma única vez** (não grava em arquivo: copie e guarde em local seguro). Ele **não** altera a política de senha nem cria cursos. Rodar de novo **sem** `--gerar-token` não cria token.
+O script é idempotente (pode rodar de novo sem duplicar nada). Ele liga web services, o protocolo REST e a conclusão de curso; cria o papel `integracaocrm` (só atribui Estudante; 20 capabilities, inclusive `mod/quiz:manageoverrides`, usada para liberar nova tentativa só de um candidato; se o papel tiver `moodle/site:viewuseridentity`, recebida na 1.8.3, o script a retira, porque ela expunha o e-mail de qualquer conta) e o usuário técnico `ws_crm` (senha aleatória, nunca exibida); autoriza o `ws_crm` no serviço `crm_vestibular_fai`; e, com `--gerar-token`, **imprime o token uma única vez** (não grava em arquivo: copie e guarde em local seguro). Ele **não** altera a política de senha nem cria cursos. Rodar de novo **sem** `--gerar-token` não cria token.
 
 Sobre o `--ip`:
 
@@ -44,7 +44,7 @@ Sobre o `--ip`:
 - Chamada de um IP fora da lista → `403 Operação não permitida para esta integração.` (no log do servidor: `IP:<ip> is not supported`).
 - `--ip=0.0.0.0/0` libera qualquer origem (o script avisa): use só em teste.
 
-**Caminho manual (sem o script), resumido:** Funcionalidades avançadas → ligar *Serviços web* e *Conclusão de curso*; Servidor → Serviços web → Gerenciar protocolos → ativar *REST*; criar o usuário `ws_crm` e um papel de sistema com as capabilities de `classes/setup/configurador.php` (lista `CAPABILITIES`), permitindo atribuir Estudante; Serviços externos → "CRM Vestibular FAI" → ativar e autorizar o `ws_crm`; Gerenciar tokens → criar o token do `ws_crm` nesse serviço (com IP e validade). Na tela de usuários autorizados do serviço, **deixe "Válido até" vazio**: no Moodle 4.5 uma validade ali bloqueia todas as chamadas (403); a validade fica só no token.
+**Caminho manual (sem o script), resumido:** Funcionalidades avançadas → ligar *Serviços web* e *Conclusão de curso*; Servidor → Serviços web → Gerenciar protocolos → ativar *REST*; criar o usuário `ws_crm` e um papel de sistema com as capabilities de `classes/setup/configurador.php` (lista `CAPABILITIES`), permitindo atribuir Estudante (sem `moodle/site:viewuseridentity`); Serviços externos → "CRM Vestibular FAI" → ativar e autorizar o `ws_crm`; Gerenciar tokens → criar o token do `ws_crm` nesse serviço (com IP e validade). Na tela de usuários autorizados do serviço, **deixe "Válido até" vazio**: no Moodle 4.5 uma validade ali bloqueia todas as chamadas (403); a validade fica só no token.
 
 ## 5. Preparar o curso
 

@@ -2,6 +2,8 @@
 
 Guia curto para instalar e configurar o plugin `local_faicrm` no Moodle da FAI. Faça **primeiro na homologação**; só depois repita na produção, com os mesmos passos.
 
+> **Só tem acesso ao painel do Moodle (sem terminal do servidor)?** Siga o [roteiro só pelo painel](implantacao-painel.md), testado de ponta a ponta.
+
 ## 1. Pré-requisitos
 
 - Moodle **4.5 ou superior**, PHP **8.1 ou superior**.

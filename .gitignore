@@ -4,3 +4,4 @@ output/
 bruno/collection.bru
 .maestri/
 dist/
+.playwright-mcp/

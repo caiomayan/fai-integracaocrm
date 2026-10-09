@@ -61,4 +61,5 @@ Os erros vêm prontos para exibir na tela, em português e com o status HTTP ade
 - [Guia de integração para o CRM](docs/integracao-crm.md): chamadas, parâmetros, erros e implantação.
 - [Desenvolvimento](docs/desenvolvimento.md): ambiente local com Docker e testes com o Bruno.
 - [Implantação na homologação e na produção](docs/implantacao-producao.md): instalar o plugin, configurar, verificar e entregar o token ao CRM.
+- [Implantação só pelo painel](docs/implantacao-painel.md): para quem não tem acesso ao servidor.
 - [Especificações](docs/sdd.md): requisitos e decisões do projeto.

@@ -1,73 +1,104 @@
 # Contrato da API — Integração CRM ↔ Moodle (Vestibular FAI)
 
-Resumo para quem vai integrar o CRM. Referência completa: [`openapi.yaml`](openapi.yaml) (abre no Swagger, Postman ou Bruno).
+API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova** e **liberar uma nova tentativa da prova** (recaptação).
 
-## Visão geral
+Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
-```
-CRM ──▶ localiza/cria o candidato ──▶ matricula no curso do Vestibular ──▶ candidato faz a prova no Moodle
- ▲                                                                                │
- └───────────────────────── consulta nota, conclusão e datas ◀───────────────────┘
-```
+---
 
-## Como chamar
+## 1. Configuração
 
 | Item | Valor |
 |---|---|
-| URL | `POST {baseUrl}/local/faicrm/rest_json.php/{operação}` |
-| `baseUrl` | local: `http://localhost:8080` · produção: **a definir com a FAI** |
-| Autenticação | header `Authorization: Bearer {token}` (token só no backend do CRM, nunca no navegador) |
-| Corpo | `Content-Type: application/json`, sempre um **objeto** JSON |
-| Método | **sempre POST**; outro método devolve 405 |
+| URL base | `https://vestibular.faifaculdade.com.br` |
+| Endpoint | `POST {URL base}/local/faicrm/rest_json.php/{operação}` |
+| Token | fornecido à parte |
+| `courseid` do Vestibular | fornecido à parte |
+| `quizid` da prova | fornecido à parte |
 
-A operação também pode ir na query: `.../rest_json.php?wsfunction={operação}`.
+Exemplo completo:
 
-## Respostas e erros
+```http
+POST https://vestibular.faifaculdade.com.br/local/faicrm/rest_json.php/local_faicrm_get_resultados_vestibular
+Authorization: Bearer {TOKEN}
+Content-Type: application/json
 
-| Status | Quando |
-|---|---|
-| **200** | sucesso, com corpo JSON |
-| **204** | sucesso sem corpo (matricular, desmatricular e cancelar nova tentativa) |
-| 400 | dado inválido (campo faltando, formato errado, JSON inválido) |
-| 401 | token ausente ou inválido |
-| 403 | operação ou papel não permitido para a integração, ou chamada de um IP não liberado |
-| 404 | curso, prova, candidato, matrícula ou nova tentativa não encontrados |
-| 405 | método diferente de POST |
-| 409 | conflito: candidato ou e-mail já existe; candidato já matriculado (ou não matriculado, na recaptação); candidato ainda pode fazer a prova, tem tentativa em andamento ou já iniciou a nova tentativa |
-| 413 | corpo maior que 1 MB |
-| 500 / 503 | erro interno / serviço indisponível (tentar de novo depois) |
+{ "courseid": 10, "pagina": 1 }
+```
 
-Todo erro tem o mesmo corpo, com a mensagem em português, pronta para exibir:
+> Nos exemplos deste documento, `10` é o id do curso, `25` o id da prova e `1548` o id de um candidato. Use os valores reais.
+
+---
+
+## 2. Regras gerais
+
+- **Método:** sempre `POST`. Qualquer outro método → `405`.
+- **Autenticação:** header `Authorization: Bearer {TOKEN}`. O token fica **só no backend do CRM**; nunca no navegador nem no app do candidato.
+- **Corpo:** `Content-Type: application/json`, sempre um **objeto** JSON (`{}` quando a operação não tem parâmetros). Lista, texto ou número na raiz → `400`. Limite de 1 MB → acima disso `413`.
+- **Respostas:** sempre JSON, em UTF-8. Sucesso sem conteúdo → `204` (corpo vazio).
+- **Datas:** ISO 8601 com fuso (`2026-10-07T14:32:10-03:00`) ou `null`. Filtros de data recebem só a data (`AAAA-MM-DD`, horário de Brasília).
+- **Rastreio:** toda resposta traz o header `X-Request-Id`. Registre-o nos logs do CRM e informe-o ao suporte quando houver problema.
+- **Textos:** nomes de curso, prova e candidato vêm como texto livre do Moodle. **Escape-os** antes de inserir em HTML.
+
+## 3. Erros
+
+Todo erro tem o mesmo formato, com a mensagem em português, pronta para exibir ao usuário:
 
 ```json
 { "message": "Já existe um candidato com este e-mail." }
 ```
 
-Toda resposta traz o header `X-Request-Id`. Informe esse valor ao suporte para localizar a chamada no log.
-
-> **Ao exibir no front:** nomes de curso, de prova e de candidato vêm como texto do Moodle. **Escape** esses textos antes de inserir no HTML.
+| Status | Significado | O que o CRM deve fazer |
+|---|---|---|
+| `400` | Dado inválido (campo faltando, formato errado, senha fraca, JSON inválido) | Corrigir o pedido; mostrar a `message` |
+| `401` | Token ausente ou inválido | Verificar a configuração do token |
+| `403` | Operação ou papel não permitido, ou chamada de um IP não autorizado | Não repetir; verificar a configuração |
+| `404` | Curso, prova, candidato, matrícula ou nova tentativa não encontrados | Tratar como "não existe" |
+| `405` | Método diferente de POST | Corrigir o pedido |
+| `409` | Conflito com o estado atual (já existe, já matriculado, ainda pode fazer a prova…) | Ver a regra de cada operação |
+| `413` | Corpo maior que 1 MB | Reduzir o pedido |
+| `500` / `503` | Erro interno / serviço temporariamente indisponível | Tentar de novo depois, com intervalo crescente |
 
 ---
 
-## 1. Localizar candidato — `core_user_get_users_by_field`
+## 4. Operações
+
+| # | Operação | Para quê |
+|---|---|---|
+| 4.1 | `core_user_get_users_by_field` | Localizar candidato |
+| 4.2 | `core_user_create_users` | Criar candidato |
+| 4.3 | `enrol_manual_enrol_users` | Matricular no curso |
+| 4.4 | `enrol_manual_unenrol_users` | Desmatricular |
+| 4.5 | `local_faicrm_get_resultados_vestibular` | Resultados (nota, conclusão, datas, tentativas) |
+| 4.6 | `local_faicrm_listar_cursos` | Listar cursos |
+| 4.7 | `local_faicrm_listar_provas` | Listar as provas de um curso |
+| 4.8 | `local_faicrm_liberar_nova_tentativa` | Liberar nova tentativa (recaptação) |
+| 4.9 | `local_faicrm_cancelar_nova_tentativa` | Cancelar a nova tentativa |
+
+### 4.1 Localizar candidato — `core_user_get_users_by_field`
 
 ```json
 { "field": "username", "values": ["12345678900"] }
 ```
-`field` pode ser `username`, `idnumber` ou `id`. A busca por `email` **não é suportada**: responde `[]` mesmo que a conta exista (o usuário técnico não tem permissão para ver e-mails, por privacidade). O CRM localiza pelo **CPF** (`username` ou `idnumber`) ou pelo `id`.
 
-**200**: lista dos encontrados; `[]` se não existe. Vêm também outros campos nativos (`fullname`, `suspended`, `lang`…); o `email` **não** vem. A exceção é nativa do Moodle: uma conta configurada para "mostrar o e-mail a todos" tem o e-mail visível para qualquer usuário logado, inclusive para a integração.
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `field` | texto | sim | `username` (CPF), `idnumber` ou `id` |
+| `values` | lista de texto | sim | um ou mais valores a procurar |
+
+**200**: lista dos encontrados; `[]` se não existe.
 ```json
-[{ "id": 72, "username": "12345678900", "idnumber": "12345678900", "firstname": "Maria", "lastname": "da Silva", "auth": "manual", "suspended": false }]
+[{ "id": 1548, "username": "12345678900", "idnumber": "12345678900", "firstname": "Maria", "lastname": "da Silva", "fullname": "Maria da Silva", "auth": "manual", "suspended": false }]
 ```
+A busca por e-mail não é suportada. O e-mail não vem na resposta.
 
-## 2. Criar candidato — `core_user_create_users`
+### 4.2 Criar candidato — `core_user_create_users`
 
 ```json
 {
   "users": [{
     "username": "12345678900",
-    "password": "12345678900",
+    "password": "Vestibular@2027",
     "firstname": "Maria",
     "lastname": "da Silva",
     "email": "maria@email.com",
@@ -77,51 +108,71 @@ Toda resposta traz o header `X-Request-Id`. Informe esse valor ao suporte para l
 }
 ```
 
-| Campo | Obrigatório | Regra |
-|---|---|---|
-| `username` | sim | único, minúsculo (CPF só com dígitos funciona) |
-| `password` | sim | precisa atender à política de senha do Moodle da FAI |
-| `firstname`, `lastname` | sim | |
-| `email` | sim | único entre as contas |
-| `auth` | não | `manual` |
-| `idnumber` | não | identificador externo (ex.: o CPF) |
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `username` | texto | sim | único; minúsculo; use o **CPF só com dígitos** |
+| `password` | texto | sim | precisa atender à política de senha: **mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo**. O CPF puro é recusado |
+| `firstname`, `lastname` | texto | sim | nome e sobrenome |
+| `email` | texto | sim | e-mail válido e **único** entre as contas |
+| `auth` | texto | não | `manual` |
+| `idnumber` | texto | não | identificador externo; recomendado: o CPF |
 
-**200**: o `id` gerado pelo Moodle. **Guarde no CRM** como `moodle_user_id`.
+**200**: guarde o `id` no CRM (`moodle_user_id`).
 ```json
-[{ "id": 72, "username": "12345678900" }]
-```
-**409** se o username ou o e-mail já existem.
-
-## 3. Matricular no curso — `enrol_manual_enrol_users`
-
-```json
-{ "enrolments": [{ "userid": 72, "courseid": 2 }] }
-```
-`roleid` é opcional; o padrão é Estudante. A integração só pode matricular como Estudante: outro papel devolve 403.
-
-**204**: matriculado, sem corpo.
-**409** "O candidato já está matriculado neste curso.": só quando ele já tem uma matrícula **manual ativa**. Uma matrícula manual **suspensa** é reativada (204), e uma matrícula por **outro método** (ex.: autoinscrição) não bloqueia: a matrícula manual é criada (204). Com vários itens, vale tudo ou nada: se um falhar, nenhum é matriculado.
-
-## 4. Desmatricular — `enrol_manual_unenrol_users`
-
-```json
-{ "enrolments": [{ "userid": 72, "courseid": 2 }] }
-```
-**204**: desmatriculado. **404** "O candidato não está matriculado neste curso."
-
-## 5. Resultados do vestibular — `local_faicrm_get_resultados_vestibular`
-
-```json
-{ "courseid": 2, "pagina": 1, "dataprovade": "2026-10-01", "dataprovaate": "2026-10-07" }
+[{ "id": 1548, "username": "12345678900" }]
 ```
 
-| Campo | Obrigatório | Regra |
-|---|---|---|
-| `courseid` | sim | id do curso do Vestibular |
-| `pagina` | não | começa em 1 (padrão 1) |
-| `dataprovade`, `dataprovaate` | não | só data, `AAAA-MM-DD` (horário de Brasília); filtra pela data da prova |
+| Erro | `message` |
+|---|---|
+| `409` | Já existe um candidato com este usuário. |
+| `409` | Já existe um candidato com este e-mail. |
+| `400` | A senha não atende à política de senhas do Moodle. |
+| `400` | Dados inválidos: o campo {campo} é obrigatório. |
 
-São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 400.
+### 4.3 Matricular no curso — `enrol_manual_enrol_users`
+
+```json
+{ "enrolments": [{ "userid": 1548, "courseid": 10 }] }
+```
+
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `enrolments[].userid` | inteiro | sim | id do candidato |
+| `enrolments[].courseid` | inteiro | sim | id do curso |
+| `enrolments[].roleid` | inteiro | não | padrão: Estudante (`5`); outro papel → `403` |
+
+**204**: matriculado.
+
+| Erro | `message` |
+|---|---|
+| `409` | O candidato já está matriculado neste curso. |
+| `403` | Não é permitido matricular com este papel. |
+| `404` | Curso não encontrado. / Candidato não encontrado. |
+
+- O `409` só ocorre se ele já tem uma matrícula ativa. Uma matrícula suspensa é reativada (`204`).
+- Com vários itens, vale **tudo ou nada**: se um falhar, nenhum é matriculado.
+
+### 4.4 Desmatricular — `enrol_manual_unenrol_users`
+
+```json
+{ "enrolments": [{ "userid": 1548, "courseid": 10 }] }
+```
+**204**: desmatriculado. · **404** "O candidato não está matriculado neste curso."
+
+O histórico de provas é mantido. Se o candidato for matriculado de novo, `tentativas`, `concluido` e `dataprova` voltam como estavam, mas `nota` volta `null`.
+
+### 4.5 Resultados do vestibular — `local_faicrm_get_resultados_vestibular`
+
+```json
+{ "courseid": 10, "pagina": 1, "dataprovade": "2026-10-01", "dataprovaate": "2026-10-31" }
+```
+
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `courseid` | inteiro | sim | id do curso |
+| `pagina` | inteiro | não | começa em 1 (padrão 1). **100 candidatos por página**, fixo |
+| `dataprovade` | texto | não | `AAAA-MM-DD`: só quem fez a prova a partir desse dia (00:00:00) |
+| `dataprovaate` | texto | não | `AAAA-MM-DD`: só quem fez a prova até esse dia (23:59:59) |
 
 **200**
 ```json
@@ -129,7 +180,7 @@ São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 4
   "total": 1234, "pagina": 1, "porpagina": 100, "totalpaginas": 13,
   "candidatos": [{
     "username": "12345678900", "firstname": "Maria", "lastname": "da Silva",
-    "email": "maria@email.com", "courseid": 2,
+    "email": "maria@email.com", "courseid": 10,
     "nota": 760, "concluido": true,
     "datamatricula": "2026-10-01T09:15:00-03:00",
     "dataprova": "2026-10-07T14:32:10-03:00",
@@ -139,125 +190,139 @@ São **100 candidatos por página**, um valor fixo. Mandar `porpagina` devolve 4
 }
 ```
 
-| Campo | Significado |
-|---|---|
-| `nota` | 0 a 1000; `null` se ainda não fez a prova |
-| `concluido` | `true` quando o Moodle marcou o curso como concluído |
-| `datamatricula` | quando foi matriculado |
-| `dataprova` | quando finalizou a prova (última tentativa finalizada); `null` se não fez |
-| `dataconclusao` | quando concluiu; `null` se não concluiu |
-| `tentativas` | quantas tentativas da prova o candidato **finalizou** |
-| `podefazerprova` | `true` se ele pode iniciar ou continuar uma tentativa agora (matriculado, prova visível e aberta, tentativa disponível ou em andamento) |
+| Campo | Tipo | Significado |
+|---|---|---|
+| `total` | inteiro | candidatos encontrados (com os filtros aplicados) |
+| `totalpaginas` | inteiro | `0` quando não há candidatos |
+| `nota` | número ou `null` | nota da prova, de 0 a 1000; `null` se ainda não fez |
+| `concluido` | booleano | `true` quando o Moodle marcou o curso como concluído (pode levar alguns minutos depois da prova) |
+| `datamatricula` | data ou `null` | quando foi matriculado |
+| `dataprova` | data ou `null` | quando finalizou a prova (última tentativa finalizada) |
+| `dataconclusao` | data ou `null` | quando concluiu |
+| `tentativas` | inteiro | quantas tentativas da prova finalizou |
+| `podefazerprova` | booleano | `true` se pode iniciar ou continuar uma tentativa agora |
 
-As datas vêm em ISO 8601 com fuso. Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`.
+- Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`. Uma página além da última traz `candidatos: []`.
+- Erros: `400` para `pagina` menor que 1, data em formato inválido, `dataprovade` depois de `dataprovaate`, ou envio de `porpagina`. `404` "Curso não encontrado."
 
-> **Rematrícula:** se um candidato for desmatriculado e matriculado de novo, o Moodle mantém a conclusão e a tentativa antigas. Ele pode voltar com `concluido: true` e `dataprova` preenchida, mas com `nota: null`. Esse é o comportamento nativo do Moodle.
-
-## 6. Listar cursos — `local_faicrm_listar_cursos`
+### 4.6 Listar cursos — `local_faicrm_listar_cursos`
 
 ```json
 { "pagina": 1, "visivel": true }
 ```
-`pagina` (padrão 1) e `visivel` (opcional: `true` só os visíveis, `false` só os ocultos; sem ele, todos) são opcionais. São 100 cursos por página; a página inicial do Moodle não entra.
+
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `pagina` | inteiro | não | padrão 1; 100 cursos por página |
+| `visivel` | booleano | não | `true`: só visíveis; `false`: só ocultos; sem o campo: todos |
 
 **200**
 ```json
 {
   "total": 2, "pagina": 1, "porpagina": 100, "totalpaginas": 1,
   "cursos": [{
-    "id": 2, "shortname": "VEST20271", "nome": "Vestibular 2027.1",
-    "categoriaid": 1, "categoria": "Categoria 1",
-    "visivel": true, "datainicio": null, "datafim": null
+    "id": 10, "shortname": "VEST20271", "nome": "Vestibular 2027.1",
+    "categoriaid": 1, "categoria": "Vestibular",
+    "visivel": true, "datainicio": "2026-09-01T00:00:00-03:00", "datafim": null
   }]
 }
 ```
-Ordem: nome, id. Curso **ativo** = `visivel: true` e dentro de `datainicio`/`datafim` (as datas vêm em ISO 8601 com fuso, ou `null`).
+Ordem: nome, id. Um curso está **ativo** quando `visivel: true` e a data atual está entre `datainicio` e `datafim` (`null` = sem limite).
 
-## 7. Listar as provas de um curso — `local_faicrm_listar_provas`
+### 4.7 Listar as provas de um curso — `local_faicrm_listar_provas`
 
 ```json
-{ "courseid": 2 }
+{ "courseid": 10 }
 ```
+
 **200**
 ```json
 {
-  "courseid": 2,
+  "courseid": 10,
   "provas": [{
-    "id": 1, "cmid": 2, "nome": "Prova Vestibular 2027.1", "visivel": true,
+    "id": 25, "cmid": 87, "nome": "Prova Vestibular 2027.1", "visivel": true,
     "notamaxima": 1000, "tentativaspermitidas": 1, "metodonota": "maior",
     "abertura": null, "fechamento": null
   }]
 }
 ```
-`tentativaspermitidas`: 0 = ilimitado. `metodonota`: `maior`, `media`, `primeira` ou `ultima` (como a nota do candidato é calculada com várias tentativas). **404** "Curso não encontrado."
 
-## 8. Liberar nova tentativa — `local_faicrm_liberar_nova_tentativa`
+| Campo | Significado |
+|---|---|
+| `id` | id da prova (`quizid`, usado nas operações 4.8 e 4.9) |
+| `tentativaspermitidas` | `0` = ilimitado |
+| `metodonota` | como a nota é calculada com várias tentativas: `maior`, `media`, `primeira` ou `ultima` |
+| `abertura` / `fechamento` | data ou `null` |
 
-Recaptação: dá **uma tentativa a mais da prova para um candidato específico**, sem mexer nos outros. Nada é apagado: as tentativas antigas ficam no histórico, e a nota segue a regra de nota da prova (com "maior nota", refazer nunca piora).
+**404** "Curso não encontrado."
+
+### 4.8 Liberar nova tentativa — `local_faicrm_liberar_nova_tentativa`
+
+Dá **uma tentativa a mais da prova para um candidato específico**. Os outros candidatos não são afetados. As tentativas anteriores ficam no histórico, e a nota segue o `metodonota` da prova (com `maior`, refazer nunca piora a nota).
 
 ```json
-{ "quizid": 1, "userid": 72, "prazo": "2026-12-31" }
+{ "quizid": 25, "userid": 1548, "prazo": "2026-12-31" }
 ```
-`prazo` é opcional (`AAAA-MM-DD`, vale até 23:59:59 de Brasília, só para esse candidato).
+
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `quizid` | inteiro | sim | id da prova |
+| `userid` | inteiro | sim | id do candidato |
+| `prazo` | texto | não | `AAAA-MM-DD`: a nova tentativa vale até 23:59:59 desse dia, só para esse candidato |
 
 **200**
 ```json
-{ "quizid": 1, "userid": 72, "tentativaspermitidas": 2, "prazo": "2026-12-31T23:59:59-03:00" }
+{ "quizid": 25, "userid": 1548, "tentativaspermitidas": 2, "prazo": "2026-12-31T23:59:59-03:00" }
 ```
 
-Erros, nesta ordem de verificação:
+Erros, na ordem em que são verificados:
 
-| Status | message |
+| Status | `message` |
 |---|---|
-| 404 | Prova não encontrada. / Candidato não encontrado. |
-| 409 | O candidato não está matriculado neste curso. |
-| 409 | O candidato tem uma tentativa em andamento. |
-| 409 | O candidato ainda pode fazer a prova. |
-| 400 | Dados inválidos: prazo deve estar no formato AAAA-MM-DD. / Dados inválidos: prazo não pode estar no passado. |
-| 400 | A prova está encerrada: informe um prazo para a nova tentativa. |
-| 503 | Serviço temporariamente indisponível. Tente novamente mais tarde. (outra chamada para o mesmo candidato e prova estava em andamento; tente de novo) |
+| `404` | Prova não encontrada. / Candidato não encontrado. |
+| `409` | O candidato não está matriculado neste curso. |
+| `409` | O candidato tem uma tentativa em andamento. |
+| `409` | O candidato ainda pode fazer a prova. |
+| `400` | Dados inválidos: prazo deve estar no formato AAAA-MM-DD. / Dados inválidos: prazo não pode estar no passado. |
+| `400` | A prova está encerrada: informe um prazo para a nova tentativa. |
+| `503` | Serviço temporariamente indisponível. Tente novamente mais tarde. (outra chamada para o mesmo candidato e prova estava em andamento) |
 
-## 9. Cancelar nova tentativa — `local_faicrm_cancelar_nova_tentativa`
+### 4.9 Cancelar nova tentativa — `local_faicrm_cancelar_nova_tentativa`
 
-Desfaz a liberação enquanto o candidato ainda não usou a tentativa extra.
+Desfaz a última liberação enquanto o candidato ainda não a usou.
 
 ```json
-{ "quizid": 1, "userid": 72 }
+{ "quizid": 25, "userid": 1548 }
 ```
-**204**: cancelada, sem corpo.
-**404** "Não há nova tentativa liberada para este candidato." · **409** "O candidato já iniciou a nova tentativa." · **503** se outra chamada para o mesmo candidato estiver em andamento (tente de novo).
 
-O cancelamento devolve a exceção ao estado de antes da liberação: tempo extra, senha ou prazo que a FAI tenha dado ao candidato são mantidos.
+**204**: cancelada. A configuração do candidato volta a ser a de antes da liberação.
 
-## Consultas auxiliares (nativas do Moodle)
-
-Elas devolvem o formato nativo do Moodle. Os detalhes estão no `openapi.yaml`.
-
-| Operação | Corpo | Para quê |
-|---|---|---|
-| `core_course_get_courses_by_field` | `{"field":"shortname","value":"VEST20271"}` | descobrir o `courseid` (para listar todos, use a seção 6) |
-| `mod_quiz_get_quizzes_by_courses` | `{"courseids":[2]}` | descobrir o id da prova (para uma lista enxuta, use a seção 7) |
-| `mod_quiz_get_user_attempts` | `{"quizid":1,"userid":72,"status":"all"}` | tentativas do candidato |
-| `core_completion_get_course_completion_status` | `{"courseid":2,"userid":72}` | conclusão de um candidato |
-| `gradereport_user_get_grade_items` | `{"courseid":2,"userid":72}` | notas detalhadas de um candidato |
-| `core_enrol_get_enrolled_users` | `{"courseid":2}` | matriculados no curso |
+| Status | `message` |
+|---|---|
+| `404` | Não há nova tentativa liberada para este candidato. |
+| `409` | O candidato já iniciou a nova tentativa. |
+| `503` | Serviço temporariamente indisponível. Tente novamente mais tarde. |
 
 ---
 
-## Fluxo recomendado para o CRM
+## 5. Fluxos
 
-1. **Localizar** pelo `username`. Se vier `[]`, **criar** e guardar o `id`. Se vier um candidato, usar o `id` dele.
-2. **Matricular** com `userid` + `courseid`. Um **409** significa que ele já estava matriculado: pode tratar como sucesso.
-3. Guardar no CRM: `crm_candidate_id`, `moodle_user_id`, `moodle_course_id`, `moodle_quiz_id` e o status da matrícula.
-4. **Consultar os resultados** quando precisar (sob demanda ou a cada X minutos, não em loop), percorrendo as páginas.
-5. **Recaptação** (refazer a prova): nos resultados, `tentativas ≥ 1` e `podefazerprova: false` indicam quem já fez e não pode refazer. **Liberar a nova tentativa** (seção 8) para aquele candidato; avisá-lo pelos canais do CRM; ele refaz a prova no Moodle; os resultados mostram `tentativas` e `nota` atualizados. Se mudar de ideia antes de ele começar, **cancelar** (seção 9). Um 409 "ainda pode fazer" ou "tentativa em andamento" significa que não é preciso liberar.
+### Inscrição de um candidato
+1. **Localizar** pelo CPF (4.1, `field: "username"`).
+2. Se vier `[]`, **criar** (4.2) e guardar o `id`. Se vier um candidato, usar o `id` dele.
+3. **Matricular** (4.3) com o `id` e o `courseid`. Um `409` "já está matriculado" pode ser tratado como sucesso.
+4. Guardar no CRM: `moodle_user_id`, `moodle_course_id`, `moodle_quiz_id` e o status da matrícula.
 
-## A confirmar com a FAI antes da produção
+### Acompanhamento dos resultados
+- Consultar **sob demanda** ou em **intervalos** (ex.: a cada 10–15 minutos), nunca em loop contínuo.
+- Percorrer as páginas de 1 até `totalpaginas`.
+- Para sincronizar só as provas recentes, usar `dataprovade` / `dataprovaate`.
 
-- `baseUrl` e token de produção.
-- `courseid` do Vestibular 2027.1 e id da prova.
-- Política de senha (senha = CPF pode ser recusada).
-- Se o servidor repassa o header `Authorization` ao PHP.
-- Se a FAI usa exceções de **grupo** nas provas: o `podefazerprova` dos resultados considera só as exceções de candidato (as que a recaptação cria).
-- O CRM deve chamar exatamente a URL oficial do Moodle (`wwwroot`): com outro host, o Moodle redireciona (303) com uma página HTML em vez de JSON.
-- Se o token tiver restrição de IP, as chamadas precisam sair do IP liberado (senão: 403).
+### Recaptação (refazer a prova)
+1. Nos resultados, `tentativas ≥ 1` com `podefazerprova: false` indica quem já fez a prova e não pode refazer.
+2. **Liberar a nova tentativa** (4.8) para o candidato escolhido, com `prazo` se a oferta tiver validade.
+3. Avisar o candidato pelos canais do CRM.
+4. Ele refaz a prova no Moodle. Nos resultados, `tentativas` aumenta e `nota` é atualizada conforme o `metodonota`.
+5. Se a oferta for cancelada antes de ele começar: **cancelar** (4.9).
+
+Um `409` "ainda pode fazer a prova" ou "tentativa em andamento" significa que não é preciso liberar.

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<role><shortname>ssocrm</shortname><name>SSO CRM</name><description>Papel técnico do usuário ws_sso, usado pelo acesso automático à prova (serviço crm_sso_vestibular_fai). Só gera o link de acesso de candidatos do Vestibular.</description><archetype/><contextlevels><level>system</level></contextlevels><allowassign/><allowoverride/><allowswitch/><allowview/><permissions><allow>local/faicrm:gerarlinkprova</allow><allow>webservice/rest:use</allow></permissions></role>

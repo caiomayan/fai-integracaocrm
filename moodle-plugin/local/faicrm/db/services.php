@@ -53,6 +53,13 @@ $functions = [
         'type' => 'write',
         'capabilities' => 'mod/quiz:manageoverrides',
     ],
+    'local_faicrm_gerar_link_prova' => [
+        'classname' => 'local_faicrm\external\gerar_link_prova',
+        'methodname' => 'execute',
+        'description' => 'Generates a one-time login link that takes a candidate straight to a quiz (automatic access).',
+        'type' => 'write',
+        'capabilities' => 'local/faicrm:gerarlinkprova',
+    ],
     'local_faicrm_cancelar_nova_tentativa' => [
         'classname' => 'local_faicrm\external\cancelar_nova_tentativa',
         'methodname' => 'execute',
@@ -85,6 +92,17 @@ $services = [
             'local_faicrm_listar_provas',
             'local_faicrm_liberar_nova_tentativa',
             'local_faicrm_cancelar_nova_tentativa',
+        ],
+    ],
+    // Separate service and token for the automatic access (SSO): only the link function, nothing else.
+    'CRM SSO Vestibular FAI' => [
+        'shortname' => 'crm_sso_vestibular_fai',
+        'enabled' => 1,
+        'restrictedusers' => 1,
+        'downloadfiles' => 0,
+        'uploadfiles' => 0,
+        'functions' => [
+            'local_faicrm_gerar_link_prova',
         ],
     ],
 ];

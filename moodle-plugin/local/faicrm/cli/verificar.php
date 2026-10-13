@@ -320,6 +320,13 @@ if ($courseid) {
     );
 }
 
+// Acesso automático à prova (SSO). As falhas só contam no código de saída se o auth_userkey estiver habilitado,
+// para não quebrar quem não usa o SSO.
+cli_writeln('');
+cli_writeln('Acesso automático à prova (SSO)');
+foreach (\local_faicrm\sso\diagnostico::run() as $item) {
+    faicrm_report($item['status'], $item['text']);
+}
 cli_writeln('');
 cli_writeln(sprintf('Resultado: %d falha(s), %d aviso(s)', $failures, $warnings));
 exit($failures > 0 ? 1 : 0);

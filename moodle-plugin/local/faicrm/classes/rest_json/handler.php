@@ -51,6 +51,7 @@ final class handler {
         'theme' => 'tema',
         'courseid' => 'curso',
         'courseids' => 'cursos',
+        'cmid' => 'prova',
         'visivel' => 'visivel',
         'prazo' => 'prazo',
         'quizid' => 'prova',
@@ -251,6 +252,14 @@ final class handler {
             case 'notenrolled':
                 return [404, 'O candidato não está matriculado neste curso.'];
             // Nova tentativa (spec 004): lançadas por local_faicrm_liberar/cancelar_nova_tentativa.
+            case 'ssoindisponivel':
+                return [503, 'O acesso automático à prova não está habilitado no Moodle.'];
+            case 'contanaopermitida':
+                return [403, 'Este usuário não pode entrar na prova pelo acesso automático.'];
+            case 'provanaoliberada':
+                return [403, 'Esta prova não está liberada para o acesso automático.'];
+            case 'candidatosuspenso':
+                return [409, 'O candidato está suspenso ou com cadastro incompleto no Moodle.'];
             case 'candidatonaomatriculado':
             case 'usernotenroled':
                 return [409, 'O candidato não está matriculado neste curso.'];

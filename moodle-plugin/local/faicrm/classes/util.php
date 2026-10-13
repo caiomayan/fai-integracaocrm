@@ -112,6 +112,25 @@ class util {
     }
 
     /**
+     * Takes the SSO lock of one candidate, for all quizzes.
+     *
+     * Generating a link deletes every key of the user (in any quiz), so two calls for different quizzes must not
+     * run together: only one key may stay valid.
+     *
+     * @param int $userid User id.
+     * @return \core\lock\lock The lock (release it in a finally block).
+     * @throws moodle_exception locktimeout when the lock is not obtained in 10 seconds.
+     */
+    public static function lock_user_sso(int $userid): \core\lock\lock {
+        $factory = \core\lock\lock_config::get_lock_factory('local_faicrm');
+        $lock = $factory->get_lock("sso_{$userid}", 10);
+        if (!$lock) {
+            throw new moodle_exception('locktimeout', 'local_faicrm');
+        }
+        return $lock;
+    }
+
+    /**
      * Whether the user override has settings other than the attempts (opening, closing, time limit or password).
      *
      * Used by cancelar when there is no recorded release state: the origin of those settings is unknown, so they are

@@ -1,5 +1,16 @@
 # Histórico de versões — local_faicrm
 
+## 1.9.0 (2026101300)
+Acesso automático à prova (SSO, spec 006):
+- Função nova **`local_faicrm_gerar_link_prova`** (`username` + `cmid`) → `{url, expiraem}`. Gera um link de **uso único** do plugin User key authentication (`auth_userkey`) que leva o candidato **já logado** à prova.
+- O link só sai para **candidato**: uma conta só com o papel Estudante, sem permissões perigosas, ativa e confirmada, e com matrícula ativa no curso da prova. Admin, equipe e contas técnicas → 403.
+- A validade é a do "User key life time", limitada a 120 s. Não há restrição de IP, e cada link novo invalida o anterior.
+- Cada link gerado registra o evento `link_prova_gerado` (candidato e prova; nunca a chave).
+- Serviço novo **`crm_sso_vestibular_fai`** ("CRM SSO Vestibular FAI"), só com essa função e com token próprio (`MOODLE_SSO_TOKEN` no CRM). Capability nova `local/faicrm:gerarlinkprova`. Papel pronto: `implantacao/papel-ssocrm.xml`.
+- O `auth_userkey` é opcional. Sem ele, só a função nova responde 503, e as rotas existentes não mudam.
+- O link devolvido aponta para uma **página de entrada própria** (`/local/faicrm/entrar.php`), que, se o navegador estiver logado como **outra pessoa** e a chave for válida, desloga essa pessoa antes de seguir para o login do `auth_userkey`. Corrige, sem trocar o plugin, o erro "Sua sessão expirou" da versão 2022081902 (conserto 607ec45 do upstream). A chave fica amarrada à prova (só abre a prova para a qual foi gerada) e é validada antes de qualquer redirecionamento: link já usado, vencido ou de outra prova mostra um erro da própria página, sem deslogar ninguém.
+- Primeiros testes PHPUnit do plugin (`tests/`).
+
 ## 1.8.5 (2026100815)
 - Erro `usernotenroled` do Moodle (ex.: `core_completion_get_course_completion_status` para um candidato não matriculado) passa a responder **409** "O candidato não está matriculado neste curso.", em vez de 500 "Erro interno".
 

@@ -9,6 +9,7 @@ Tudo passa pelas APIs padrão do Moodle (autenticação por token, permissões e
 - **Adaptador JSON** `rest_json.php`: recebe `POST` com corpo JSON e `Authorization: Bearer <token>`, e executa o servidor REST nativo do Moodle. Erros saem como `{"message": "..."}` em português, com o status HTTP adequado.
 - **Função `local_faicrm_get_resultados_vestibular`** (somente leitura): candidatos do curso, 100 por página, com nota, conclusão, `datamatricula`, `dataprova`, `dataconclusao` e filtro por data da prova.
 - **Serviço externo** `crm_vestibular_fai` ("CRM Vestibular FAI"), com as funções nativas necessárias (criar usuário, matricular, consultar).
+- **Acesso automático à prova (SSO)**: a função `local_faicrm_gerar_link_prova`, no serviço separado `crm_sso_vestibular_fai`. Ela gera um link de uso único do plugin [User key authentication](https://moodle.org/plugins/auth_userkey) (`auth_userkey`, opcional) e só funciona para candidatos. O roteiro está em `docs/implantacao-painel.md`, parte "Acesso automático à prova".
 - **Scripts de linha de comando** `cli/configurar.php` e `cli/verificar.php`.
 
 ## Requisitos

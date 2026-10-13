@@ -26,6 +26,11 @@ O plugin da comunidade **User key authentication** (`auth_userkey` 2022081902, C
 
   Funciona com a 2022081902 e com versões futuras.
 
+- **D-11** (13/10, 1.9.1) Na produção, **todos os cursos estão numa categoria só** ("categoria"), e o Caio não mexe na estrutura acadêmica. Por isso, além das categorias, o SSO pode ser liberado **por curso**: a configuração nova "Cursos liberados" (`local_faicrm/sso_cursos`).
+  - O conjunto liberado = os cursos das categorias liberadas (com as subcategorias) **+** os cursos liberados.
+  - As regras do RF-23 valem sobre esse conjunto: a prova precisa estar num curso dele, e o candidato só pode ter papéis em cursos dele.
+  - Sem categoria **e** sem curso liberado → SSO desligado (503).
+
 ## Requisitos
 - **RF-23 Gerar link de acesso à prova:** função `local_faicrm_gerar_link_prova`, com os parâmetros `username` (CPF) e `cmid` (id de acesso da prova, ex.: 22). As regras, nesta ordem:
   - sem a permissão `local/faicrm:gerarlinkprova` → 403;
@@ -57,9 +62,10 @@ O plugin da comunidade **User key authentication** (`auth_userkey` 2022081902, C
   - o serviço `crm_sso_vestibular_fai` tem usuários restritos e **só** essa função;
   - a função **não entra** no `crm_vestibular_fai`;
   - o papel pronto para importar é `implantacao/papel-ssocrm.xml`, com só `local/faicrm:gerarlinkprova` e `webservice/rest:use`.
+- **RF-28b Cursos liberados (1.9.1):** na mesma página, `local_faicrm/sso_cursos` (vários cursos; padrão: nenhum), com o nome completo, o nome breve e o id de cada curso. O diagnóstico conta categorias **ou** cursos liberados.
 - **RF-28 Configuração:** página do plugin em **Administração do site → Plugins → Plugins locais → FAI CRM: acesso automático à prova**, com a configuração `local_faicrm/sso_categorias` (várias categorias de curso; padrão: nenhuma).
 - **RF-26 Endpoints:** a função funciona no `rest_json.php`, que é o recomendado (JSON e erros em português, como as outras rotas), e no servidor REST nativo (`/webservice/rest/server.php`).
-- **RF-27 Versão:** o plugin vai para a **1.9.0**.
+- **RF-27 Versão:** o plugin vai para a **1.9.0**; com o D-11, **1.9.1** (2026101301).
 
 ## Critérios de aceite
 - **CA-31** PHPUnit cobre todas as regras do RF-23, a invalidação do link anterior, a validade configurada (e a padrão de 60 s quando vazia) e a chave sem restrição de IP.
@@ -78,4 +84,10 @@ O plugin da comunidade **User key authentication** (`auth_userkey` 2022081902, C
   - importar o papel e criar o `ws_sso`;
   - gerar o token e validar o login pelo link.
 - **CA-36** Categorias: uma prova numa subcategoria liberada → OK; uma prova fora das categorias → 403; um candidato que também é estudante de um curso fora das categorias → 403; sem categoria configurada → 503.
+- **CA-37** (1.9.1) Cursos liberados:
+  - só o curso liberado, sem categoria → a prova dele gera link;
+  - prova de outro curso da mesma categoria → 403;
+  - candidato também estudante de outro curso da mesma categoria → 403;
+  - sem curso e sem categoria → 503;
+  - categorias e cursos juntos → a união dos dois.
 - **CA-35** Regressão: as rotas das specs 002 a 005 (Bruno) continuam iguais; moodle-cs com 0 erros e 0 avisos; OpenAPI e contrato atualizados; nota pronta para o time do CRM.

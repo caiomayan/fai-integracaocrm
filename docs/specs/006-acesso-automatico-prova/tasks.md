@@ -9,6 +9,7 @@
 | T5 | Papel `implantacao/papel-ssocrm.xml` e roteiro só pelo painel, validado num Moodle limpo | RF-25, CA-34 | ✅ |
 | T6 | Bruno, OpenAPI, contrato, CHANGES, README, sdd.md; moodle-cs; regressão | CA-35 | ✅ |
 | T7 | Pacote `local_faicrm-1.9.0.zip` e nota para o time do CRM | CA-35 | ✅ |
+| T8 | 1.9.1: cursos liberados (D-11), testes, docs e reteste | RF-28b, CA-37 | ✅ |
 
 ## Resultado (13/10)
 - **PHPUnit:** 68 testes, 163 asserções, verde. **moodle-cs** (moodle e moodle-extra): 0 erros, 0 avisos.
@@ -20,3 +21,16 @@
   - CA-36: categorias.
 - **Segurança (Muralha):** revisões do desenho e do código, sem crítico nem alto pendente. O risco aceito é o T-09: o `/auth/userkey/login.php` aberto direto desloga.
 - **Pacote:** `dist/local_faicrm-1.9.0.zip`, SHA-256 `966117ff964c2f14dcadfa8fc98db9f6cdd4bb7131178b3068708e853fef013f`.
+
+## Resultado da 1.9.1 (13/10)
+- **PHPUnit:** 76 testes, 177 asserções, verde. **moodle-cs:** 0 erros e 0 avisos.
+- **QA (Lupa), CA-37:** OK.
+  - só o curso liberado gera link;
+  - outro curso da mesma categoria → 403;
+  - aluno de outro curso → 403;
+  - nada marcado → 503;
+  - categoria e curso juntos → a união dos dois;
+  - curso excluído é ignorado.
+- **Upgrade 1.9.0 → 1.9.1 pelo painel:** OK. Regressão Bruno: 6/6.
+- **Pacote:** `dist/local_faicrm-1.9.1.zip`, SHA-256 `59b56dca43dafb220425e480e00b7c6973001744901405d6723b1df4cbac19e1`.
+- **Conhecido (baixo):** num Moodle **sem nenhum curso**, o campo "Cursos liberados" fica sem opções e não é gravado. Por isso, a página Notificações volta sempre para "Novas configurações". Some ao criar o primeiro curso. A produção não é afetada.

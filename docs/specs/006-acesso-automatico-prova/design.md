@@ -89,6 +89,11 @@ auth_userkey (login.php): a chave existe e está na validade? → apaga a chave 
   - O candidato só pode ter papéis (só de Estudante) em contextos de curso ou de atividade de cursos dessas categorias.
   - A consulta é portátil e **não usa `LIKE`** (o `$DB->sql_like` do Moodle recusa uma coluna como padrão): um `role_assignment` em contexto de curso vale se `course.category` está nas categorias liberadas, e em contexto de atividade se o `course_modules.course` da atividade está. As subcategorias são expandidas em PHP (`get_all_children_ids`) antes da consulta.
   - Sem categoria configurada → `ssoindisponivel` (falha fechada).
+- **T-10b Cursos liberados (D-11, 1.9.1):** `elegibilidade` passa a trabalhar com o **conjunto de cursos liberados**.
+  - O conjunto = os ids de curso das categorias liberadas (com as subcategorias) ∪ `sso_cursos`. O id 1 (página inicial) nunca entra.
+  - A prova liberada e a conta de candidato usam esse conjunto (`course.id IN (…)`), sem LIKE, portátil.
+  - Falha fechada: sem categoria e sem curso → `ssoindisponivel`.
+  - `settings.php`: `admin_setting_configmultiselect` com os cursos (`get_courses()` sem o id 1), rótulo "nome completo (nome breve, id N)".
 - **T-11 Desacoplamento (D-09):**
   - `classes/sso/elegibilidade.php` tem as regras (prova liberada? conta de candidato?);
   - `classes/sso/link.php` gera a chave e a URL (o único ponto que conhece o `auth_userkey`);

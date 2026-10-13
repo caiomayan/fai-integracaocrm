@@ -4,7 +4,7 @@ API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular
 
 Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
-**Versão do contrato:** 1.9.0, de 13/10/2026 (plugin `local_faicrm` 1.9.0).
+**Versão do contrato:** 1.9.1, de 13/10/2026 (plugin `local_faicrm` 1.9.1). Para o CRM, a 1.9.1 é igual à 1.9.0.
 
 ---
 
@@ -17,7 +17,7 @@ Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 ### ⚠️ Diferença em relação ao que estava previsto
 O CRM foi preparado para chamar `auth_userkey_request_login_url` em `/webservice/rest/server.php`, ler `loginurl` e acrescentar `wantsurl`. **Não use essa função.** Ela gera link de login para **qualquer** usuário do Moodle, inclusive administradores, e o token não pode ser restringido por IP, porque o CRM não tem IP fixo. Por segurança, a FAI deixa essa função **desligada**.
 
-No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera link para **candidatos** matriculados em provas de vestibular. As diferenças:
+No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera link para **candidatos** matriculados nas provas dos cursos de vestibular liberados pela FAI. As diferenças:
 
 | | Previsto antes (não usar) | Agora (usar) |
 |---|---|---|
@@ -35,7 +35,7 @@ No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera li
 2. **Configuração do `cmid` da prova**, o id de acesso. No Vestibular 2027.1 é **`22`**.
    - O `cmid` também vem na operação 4.7, campo `cmid`.
    - Não confunda com o `quizid` (`id`, usado na 4.8 e na 4.9).
-   - Em um vestibular novo, basta configurar o `cmid` da prova nova, sem nenhuma outra mudança.
+   - Em um vestibular novo, basta configurar o `cmid` da prova nova. Antes, a FAI libera o curso novo no Moodle.
 3. **No clique de "Realizar minha prova"**, o **backend** do CRM:
    1. chama a 4.10 com o CPF do candidato logado no CRM (o mesmo `username` do cadastro, só dígitos) e o `cmid`;
    2. com `200`, responde ao navegador com **redirecionamento `302` para `url`**, enviando `Cache-Control: no-store` e `Referrer-Policy: no-referrer`;
@@ -367,7 +367,7 @@ Desfaz a última liberação enquanto o candidato ainda não a usou.
 
 ### 4.10 Link de acesso automático à prova — `local_faicrm_gerar_link_prova`
 
-Gera um **link de uso único** que leva o candidato à prova **já logado**, sem senha. Vale para as provas dos vestibulares que a FAI liberou no Moodle. Vestibular novo funciona do mesmo jeito: é só usar o `cmid` da prova nova. Use o token **`MOODLE_SSO_TOKEN`**: o `MOODLE_API_TOKEN` não chama esta operação, e o token do SSO não chama as outras.
+Gera um **link de uso único** que leva o candidato à prova **já logado**, sem senha. Vale para as provas dos cursos de vestibular que a FAI liberou no Moodle. Para um vestibular novo, a FAI libera o curso novo no Moodle e o CRM só usa o `cmid` da prova nova. Use o token **`MOODLE_SSO_TOKEN`**: o `MOODLE_API_TOKEN` não chama esta operação, e o token do SSO não chama as outras.
 
 ```json
 { "username": "12345678900", "cmid": 22 }
@@ -396,7 +396,7 @@ Erros, na ordem em que são verificados:
 | `403` | Operação não permitida para esta integração. | Usou o `MOODLE_API_TOKEN` (ou outro token) | Corrigir a configuração (usar o `MOODLE_SSO_TOKEN`) |
 | `503` | O acesso automático à prova não está habilitado no Moodle. | Configuração pendente na FAI | Alertar a equipe técnica; mostrar a `message` |
 | `404` | Prova não encontrada. | `cmid` errado ou prova excluída | Conferir o `cmid` configurado |
-| `403` | Esta prova não está liberada para o acesso automático. | A prova não está numa categoria de vestibular liberada pela FAI | Alertar a equipe técnica |
+| `403` | Esta prova não está liberada para o acesso automático. | O curso da prova não foi liberado pela FAI para o acesso automático (ex.: vestibular novo ainda não liberado) | Alertar a equipe técnica da FAI |
 | `404` | Candidato não encontrado. | CPF sem cadastro no Moodle | Cadastrar e matricular (4.2, 4.3) e tentar de novo |
 | `403` | Este usuário não pode entrar na prova pelo acesso automático. | Conta de equipe, administrador, ou aluno de curso que não é de vestibular | Mostrar a `message`; o candidato procura a FAI |
 | `409` | O candidato está suspenso ou com cadastro incompleto no Moodle. | Conta suspensa no Moodle | Mostrar a `message`; o candidato procura a FAI |

@@ -79,6 +79,15 @@ Content-Type: application/json
 
 > Nos exemplos deste documento, `10` é o id do curso, `25` o id da prova e `1548` o id de um candidato. Use os valores reais.
 
+**`quizid` × `cmid`:** o Moodle identifica a mesma prova por dois números.
+
+| Número | O que identifica | Onde usar |
+|---|---|---|
+| `quizid` | a **prova em si**: questões, nota e tentativas | 4.8 e 4.9 |
+| `cmid` | a **página da prova dentro do curso**: o número depois de `view.php?id=` no endereço da prova | 4.10 |
+
+No Vestibular 2027.1, o `quizid` é `11` e o `cmid` é `22`. Os dois vêm na operação 4.7 (campos `id` e `cmid`).
+
 ---
 
 ## 2. Regras gerais
@@ -301,7 +310,8 @@ Ordem: nome, id. Um curso está **ativo** quando `visivel: true` e a data atual 
 
 | Campo | Significado |
 |---|---|
-| `id` | id da prova (`quizid`, usado nas operações 4.8 e 4.9) |
+| `id` | id da **prova em si** (`quizid`): questões, nota e tentativas. Usado nas operações 4.8 e 4.9 |
+| `cmid` | id da **página da prova no curso** (*course module id*), o número que aparece no endereço `…/mod/quiz/view.php?id={cmid}`. Usado na operação 4.10 |
 | `tentativaspermitidas` | `0` = ilimitado |
 | `metodonota` | como a nota é calculada com várias tentativas: `maior`, `media`, `primeira` ou `ultima` |
 | `abertura` / `fechamento` | data ou `null` |

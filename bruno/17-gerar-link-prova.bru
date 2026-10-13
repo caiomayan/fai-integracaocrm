@@ -17,7 +17,7 @@ auth:bearer {
 body:json {
   {
     "username": "12345678900",
-    "cmid": 7
+    "cmid": 8
   }
 }
 
@@ -27,7 +27,7 @@ docs {
     vars:pre-request {
       tokenSSO: <token do ws_sso>
     }
-  Resposta esperada: 200 {"url":"http://localhost:8080/local/faicrm/entrar.php?key=...&cmid=7","expiraem":"..."}.
+  Resposta esperada: 200 {"url":"http://localhost:8080/local/faicrm/entrar.php?key=...&cmid=8","expiraem":"..."}.
   Abra a url numa janela anônima em até 2 minutos: a Maria entra logada na prova. Abrir de novo → erro (uso único).
   O cmid é o id de acesso da prova (veja 11 Listar provas).
 }

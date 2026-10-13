@@ -1485,6 +1485,7 @@ components:
           description: Id da prova (`quizid`).
         cmid:
           type: integer
+          description: Id da página da prova no curso (course module id), o número de `/mod/quiz/view.php?id={cmid}`. Usado no acesso automático (gerar link de acesso à prova). Não confundir com `id` (quizid).
         nome:
           type: string
         visivel:

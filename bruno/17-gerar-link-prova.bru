@@ -1,0 +1,33 @@
+meta {
+  name: 17 Gerar link de acesso à prova (SSO)
+  type: http
+  seq: 22
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_gerar_link_prova
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSSO}}
+}
+
+body:json {
+  {
+    "username": "12345678900",
+    "cmid": 7
+  }
+}
+
+docs {
+  Usa o token do SSO (serviço "CRM SSO Vestibular FAI", usuário ws_sso), não o da integração.
+  Defina a variável tokenSSO em collection.bru (gitignored), por exemplo:
+    vars:pre-request {
+      tokenSSO: <token do ws_sso>
+    }
+  Resposta esperada: 200 {"url":"http://localhost:8080/local/faicrm/entrar.php?key=...&cmid=7","expiraem":"..."}.
+  Abra a url numa janela anônima em até 2 minutos: a Maria entra logada na prova. Abrir de novo → erro (uso único).
+  O cmid é o id de acesso da prova (veja 11 Listar provas).
+}

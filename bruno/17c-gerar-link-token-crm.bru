@@ -1,0 +1,23 @@
+meta {
+  name: 17c Gerar link com o token da integração (recusado)
+  type: http
+  seq: 24
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_gerar_link_prova
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "username": "12345678900",
+    "cmid": 7
+  }
+}
+
+docs {
+  O token da integração (ws_crm) não gera link de acesso: os tokens são separados.
+  Resposta esperada: 403 "Operação não permitida para esta integração."
+}

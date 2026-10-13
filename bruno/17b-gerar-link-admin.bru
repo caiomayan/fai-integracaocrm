@@ -1,0 +1,27 @@
+meta {
+  name: 17b Gerar link para o admin (recusado)
+  type: http
+  seq: 23
+}
+
+post {
+  url: http://localhost:8080/local/faicrm/rest_json.php/local_faicrm_gerar_link_prova
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSSO}}
+}
+
+body:json {
+  {
+    "username": "admin",
+    "cmid": 7
+  }
+}
+
+docs {
+  O acesso automático só vale para candidato. Conta de admin, equipe ou técnica nunca recebe link.
+  Resposta esperada: 403 "Este usuário não pode entrar na prova pelo acesso automático."
+}

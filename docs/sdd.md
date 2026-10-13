@@ -21,6 +21,7 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 ## Specs
 | ID | Spec | Status |
 |---|---|---|
+| 006 | [Acesso automático à prova (SSO CRM → Moodle)](specs/006-acesso-automatico-prova/requirements.md) | ✅ concluída (1.9.0, aprovada pelo QA) |
 | 001 | [Ambiente de desenvolvimento](specs/001-ambiente-dev/spec.md) | ✅ concluída |
 | 005 | [Correções da auditoria de cliente](specs/005-auditoria-cliente/requirements.md) | ✅ revalidada (1.8.4, aprovada para homologação) |
 | 004 | [Nova tentativa e catálogo de cursos/provas](specs/004-nova-tentativa-e-catalogo/requirements.md) | ✅ concluída (1.8.2) |
@@ -31,4 +32,4 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 - Configuração de e-mail duplicado (`allowaccountssameemail`) no Moodle da FAI.
 - Política de senha do Moodle da FAI (senha = CPF numérico pode ser recusada).
 - IDs reais: curso do Vestibular 2027.1 e questionário.
-- Login transparente (SSO) do candidato — fora do escopo da 002.
+- Login transparente (SSO) do candidato: tratado na spec 006.

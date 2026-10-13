@@ -3,7 +3,7 @@
 Para quem tem acesso **só ao painel de administração** do Moodle, sem acesso ao servidor (terminal). Este roteiro foi executado do começo ao fim num Moodle 4.5.14+ limpo, **só pelo navegador**, em 09/10/2026, e a API funcionou com o token gerado no painel.
 
 Leva cerca de 20 minutos. Você vai precisar de:
-- **`local_faicrm-1.8.5.zip`**: [release v1.8.5](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.8.5);
+- **`local_faicrm-1.9.0.zip`**: [release v1.9.0](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.9.0);
 - **`papel-integracaocrm.xml`**: o papel pronto, com as 20 permissões ([`implantacao/papel-integracaocrm.xml`](../implantacao/papel-integracaocrm.xml), também anexado à release);
 - o **IP do servidor do CRM** (recomendado), para restringir o token.
 
@@ -47,13 +47,14 @@ Leva cerca de 20 minutos. Você vai precisar de:
 ## 6. Autorizar o usuário no serviço
 **Administração do site → Servidor → Web services → Serviços externos**
 - Na linha **"CRM Vestibular FAI"** (criado pela instalação do plugin), clique em **Usuários autorizados** → selecione o `ws_crm` → **◄ Adicionar**.
+- A tela mostra **"Faltando capacidades: 2"** (`moodle/course:useremail` e `moodle/user:update`). Isso é **esperado**: o papel dá ao `ws_crm` só o mínimo, de propósito, e a integração funciona sem essas duas permissões.
 - ⚠️ Se a tela mostrar campos para esse usuário, deixe **"Válido até" desligado**. No Moodle 4.5, uma validade nesta tela **bloqueia todas as chamadas** (403). A validade vai só no token (próximo passo).
 
 ## 7. Gerar o token
 **Administração do site → Servidor → Web services → Gerenciar tokens → Criar token**
 - Nome: `CRM Vestibular FAI (produção)`
 - Usuário: digite `ws_crm` e escolha na lista
-- Serviço: **CRM Vestibular FAI**
+- Serviço: **CRM Vestibular FAI**. ⚠️ A lista pode já vir com **"CRM SSO Vestibular FAI"** selecionado, que é o serviço do acesso automático. Confira que escolheu o **CRM Vestibular FAI**, sem "SSO".
 - Restrição de IP: o **IP do servidor do CRM** (recomendado; vazio = de qualquer lugar)
 - ⚠️ **Válido até:** o Moodle já vem com essa opção **ligada e só 30 dias**. Ajuste para **1 ano** (ou o prazo combinado com a FAI); senão a integração para em um mês.
 - **Salvar mudanças**. O token aparece **uma única vez** ("Copie o token agora"): copie e guarde num lugar seguro (cofre de senhas).
@@ -81,6 +82,126 @@ Na coleção `bruno/`, troque `http://localhost:8080` pela URL do Moodle da FAI 
 
 ## 11. Entregar ao time do CRM
 Por canal seguro: a URL do Moodle, o **token**, o **id do curso** e o **id da prova**, e o [contrato da API](contrato-api-crm.md).
+
+---
+
+# Acesso automático à prova (SSO) — a partir da 1.9.0
+
+Com o SSO, o candidato clica em **"Realizar minha prova"** no CRM e cai na prova **já logado**, sem uma segunda senha ([spec 006](specs/006-acesso-automatico-prova/requirements.md)). Ele usa o plugin da comunidade **User key authentication** (`auth_userkey` **2022081902**), com um **token separado** do token da integração.
+
+> Por que não usar a função do próprio `auth_userkey`? Ela gera link de login para **qualquer** usuário, **inclusive o admin**. A função do `local_faicrm` só gera link para **candidato matriculado** na prova. Por isso o serviço do `auth_userkey` fica **desligado**, e o CRM usa só o nosso.
+
+Você vai precisar de: o **`local_faicrm-1.9.0.zip`**, o **`papel-ssocrm.xml`** ([`implantacao/papel-ssocrm.xml`](../implantacao/papel-ssocrm.xml), também anexado à release) e o zip do **`auth_userkey` 2022081902** ([Moodle Plugins directory](https://moodle.org/plugins/auth_userkey/2022081902/37365)), se ele ainda não estiver instalado.
+
+## S1. Instalar ou atualizar os plugins
+**Administração do site → Plugins → Instalar plugins**, como no passo 1:
+- **`local_faicrm-1.9.0.zip`**: atualiza a integração. Nada muda nas rotas que o CRM já usa.
+- **`auth_userkey` 2022081902**: só se ainda não estiver instalado. Confira em **Plugins → Visão geral dos plugins**, procurando "userkey".
+
+Logo depois do "Sucesso", o Moodle abre a tela **"Novas configurações"** com os campos dos dois plugins. O auth_userkey vem com "Mapping field" = e-mail e validade 60. Você pode preencher ali com os valores do S2 e do S2b, ou clicar em **Salvar mudanças** sem mudar nada e configurar nos passos S2 e S2b. O resultado é o mesmo.
+
+## S2. Configurar o User key authentication
+**Administração do site → Plugins → Autenticação → User key authentication**:
+
+Alguns campos aparecem em português e outros em inglês (o pacote de idioma traduz só parte deles):
+
+| Campo na tela | Valor |
+|---|---|
+| Mapping field | **Identificação de usuário** (Username) |
+| Tempo de vida da chave do usuário (User key life time) | **120** (segundos) |
+| Restrição de IP (IP restriction) | **Não**. O CRM não envia o IP do candidato, e os links do `local_faicrm` não usam IP mesmo com "Sim". Deixe "Não" para não confundir. |
+| Faixas de IP permitidos (Whitelist IP ranges) | vazio |
+| Logout redirect URL | vazio |
+| URL of SSO host | **vazio** ⚠️ Preenchido, a tela de login normal do Moodle passa a mandar todo mundo para esse endereço. |
+| Criar usuário? (Create user?) | **Não** |
+| Update user? | **Não** |
+
+**Salvar mudanças.**
+
+## S2b. Liberar as categorias dos vestibulares
+**Administração do site → Plugins → Plugins locais → FAI CRM: acesso automático à prova**:
+- Em **"Categorias liberadas"**, selecione a categoria (ou as categorias) onde ficam os **cursos de vestibular**. As subcategorias entram junto. Para marcar mais de uma, segure Ctrl.
+- **Salvar mudanças.**
+
+Só as provas dessas categorias geram link. Também fica de fora quem tiver papel em qualquer curso fora delas, por exemplo um aluno de um curso regular, mesmo que esteja inscrito num vestibular. Sem nenhuma categoria marcada, o acesso automático fica **desligado**.
+
+> **Dica:** deixe os vestibulares numa categoria própria (ex.: "Vestibulares"), sem cursos de aula ou de material. Um vestibular novo criado ali já funciona, sem mexer nesta tela. Se o curso do vestibular estiver numa categoria misturada com outros cursos, mova-o: **Curso → Configurações → Categoria do curso**. Isso não muda o id do curso, e a integração não é afetada.
+
+## S3. Habilitar o método de autenticação
+**Administração do site → Plugins → Autenticação → Gerenciar autenticação**: na linha **User key authentication**, clique no **olho** para habilitar. O login normal (usuário e senha) continua igual para todos.
+
+## S4. Desligar o serviço do próprio auth_userkey
+O auth_userkey **vem com o serviço dele habilitado**, e a função desse serviço gera link para qualquer usuário. Por isso ele precisa ser desligado.
+
+**Administração do site → Servidor → Web services → Serviços externos**:
+- Na linha **"User key authentication web service"**, clique em **Editar**, desmarque **"Habilitado"** e clique em **Salvar mudanças**.
+- Em **Usuários autorizados** desse serviço, a lista deve ficar **vazia**.
+
+## S5. Criar o papel "SSO CRM" (importando o XML)
+Como no passo 3, com o **`papel-ssocrm.xml`**. Confira que a tela veio preenchida:
+- nome curto `ssocrm`;
+- contexto **Sistema**;
+- **nenhum** papel em "Permitir atribuições de papel";
+- **2 permissões** como Permitir: *Gerar o link de acesso automático à prova* (`local/faicrm:gerarlinkprova`) e *Usar o protocolo REST* (`webservice/rest:use`).
+
+Depois clique em **Criar este papel**.
+
+## S6. Criar o usuário técnico `ws_sso`
+Como no passo 4:
+- identificação de usuário: `ws_sso`;
+- senha **longa e aleatória**;
+- nome: `SSO`, sobrenome: `CRM`;
+- um e-mail técnico da FAI.
+
+Use uma conta **separada** do `ws_crm`.
+
+## S7. Dar o papel e autorizar no serviço
+- **Usuários → Permissões → Atribuir papéis globais → SSO CRM**: adicione o `ws_sso`.
+- **Servidor → Web services → Serviços externos → "CRM SSO Vestibular FAI" → Usuários autorizados**: adicione o `ws_sso`. Deixe **"Válido até" desligado**, pelo mesmo motivo do passo 6.
+
+## S8. Gerar o token do SSO
+**Servidor → Web services → Gerenciar tokens → Criar token**:
+- nome: `CRM SSO Vestibular FAI (produção)`;
+- usuário: `ws_sso`;
+- serviço: **CRM SSO Vestibular FAI**;
+- restrição de IP: **vazia**, porque o CRM não tem IP fixo. Se um dia tiver, preencha;
+- **Válido até:** **1 ano**, porque o padrão é 30 dias.
+
+Copie o token (ele aparece **uma única vez**). No CRM, ele vira o segredo **`MOODLE_SSO_TOKEN`**. O `MOODLE_API_TOKEN` atual continua o mesmo.
+
+## S9. Teste de aceite
+Primeiro, abra a página do S2b (**Plugins locais → FAI CRM: acesso automático à prova**). No topo, o **diagnóstico** confere sozinho os passos S2 a S8, por exemplo:
+- o serviço do auth_userkey continua desligado e sem usuários;
+- a "URL of SSO host" está vazia;
+- as categorias estão liberadas;
+- o `ws_sso` está autorizado e tem token.
+
+Todos os itens devem estar **OK**. Um **AVISO** ou uma **FALHA** diz o que corrigir.
+
+Com um **candidato de teste** matriculado no curso da prova, chame a rota `local_faicrm_gerar_link_prova` com o token do SSO. Na coleção `bruno/`, use `17-gerar-link-prova` e coloque o token do SSO na aba Auth dessa requisição:
+```http
+POST /local/faicrm/rest_json.php/local_faicrm_gerar_link_prova
+Authorization: Bearer <token do SSO>
+Content-Type: application/json
+
+{ "username": "<CPF do candidato de teste>", "cmid": 22 }
+```
+A resposta é `200` com `url` e `expiraem`. Agora:
+- **Abra a `url` numa janela anônima em até 2 minutos.** O candidato entra logado, direto na prova.
+- **Abra a mesma `url` de novo.** Tem que dar erro, porque o link é de uso único.
+- **Peça um link para `admin`.** Tem que dar `403`.
+- **Peça um link para uma prova de um curso fora das categorias liberadas.** Tem que dar `403`.
+
+O link gerado também fica registrado: em **Relatórios → Logs**, escolha o **curso da prova**. Aparece o evento **"Link de acesso à prova gerado"**, com o candidato.
+
+Depois apague o candidato de teste.
+
+## Voltar atrás (só o SSO)
+- **Parar na hora:** Gerenciar tokens → excluir o token do SSO. A integração do CRM (`ws_crm`) continua funcionando.
+- **Desligar o login por link:** Gerenciar autenticação → desabilitar **User key authentication**. Os links passam a dar erro, e o login normal continua.
+- **Desligar só a geração de links:** na página do S2b, desmarque todas as categorias.
+
+---
 
 ## Se precisar voltar atrás
 - **Parar a integração na hora:** Gerenciar tokens → excluir o token (as chamadas passam a dar 401).

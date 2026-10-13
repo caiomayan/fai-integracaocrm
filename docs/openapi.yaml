@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.8.5
+  version: 1.9.0
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -33,6 +33,8 @@ tags:
     description: Cursos do Moodle e provas de um curso.
   - name: Recaptação
     description: Liberar (e cancelar) uma nova tentativa da prova para um candidato específico.
+  - name: Acesso automático
+    description: Link de uso único que leva o candidato à prova já logado (SSO). Usa um token próprio (MOODLE_SSO_TOKEN).
   - name: Consultas auxiliares
     description: Funções nativas do Moodle liberadas no serviço, para conferência. As respostas são as nativas (resumidas nos exemplos).
 security:
@@ -883,6 +885,117 @@ paths:
           $ref: '#/components/responses/CorpoGrande'
         '503':
           $ref: '#/components/responses/Ocupado'
+  /local/faicrm/rest_json.php/local_faicrm_gerar_link_prova:
+    post:
+      tags: [Acesso automático]
+      operationId: gerarLinkProva
+      summary: Gerar o link de acesso automático à prova
+      description: |
+        Gera um link de **uso único** (válido por até 2 minutos) que leva o candidato à prova **já logado**, sem senha.
+        O CRM chama pelo backend e redireciona o navegador do candidato para `url` na hora. Cada link novo invalida o
+        anterior. Só funciona para provas das **categorias de curso liberadas** pela FAI (os vestibulares) e para
+        **candidato** (conta só com o papel Estudante, só em cursos dessas categorias) com matrícula ativa no curso da prova.
+        Admin, equipe, contas técnicas e alunos de outros cursos recebem 403.
+
+        Usa o token **do serviço "CRM SSO Vestibular FAI"** (`MOODLE_SSO_TOKEN`). Ele não chama as outras operações, e o
+        token da integração não chama esta (403). Não grave a `url` em log: ela equivale a uma senha até `expiraem`.
+      security:
+        - ssoBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, cmid]
+              properties:
+                username:
+                  type: string
+                  description: CPF do candidato (o username do cadastro).
+                cmid:
+                  type: integer
+                  description: Id de acesso da prova (o `cmid` de "Provas do curso").
+            example:
+              username: "12345678900"
+              cmid: 22
+      responses:
+        '200':
+          description: Link gerado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkProva'
+        '400':
+          description: Parâmetro obrigatório ausente ou inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "Dados inválidos: o campo prova é obrigatório."
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          description: Token sem permissão para esta operação, ou a conta não é de candidato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                prova:
+                  summary: Prova fora das categorias liberadas
+                  value:
+                    message: "Esta prova não está liberada para o acesso automático."
+                conta:
+                  summary: Conta de equipe, admin, técnica ou aluno de outro curso
+                  value:
+                    message: "Este usuário não pode entrar na prova pelo acesso automático."
+                token:
+                  summary: Token de outro serviço
+                  value:
+                    message: "Operação não permitida para esta integração."
+        '404':
+          description: Prova ou candidato inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                prova:
+                  summary: Prova inexistente
+                  value:
+                    message: "Prova não encontrada."
+                candidato:
+                  summary: Candidato inexistente
+                  value:
+                    message: "Candidato não encontrado."
+        '405':
+          $ref: '#/components/responses/MetodoNaoPermitido'
+        '409':
+          description: Candidato suspenso ou sem matrícula ativa no curso da prova.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              examples:
+                suspenso:
+                  summary: Suspenso ou cadastro incompleto
+                  value:
+                    message: "O candidato está suspenso ou com cadastro incompleto no Moodle."
+                matricula:
+                  summary: Sem matrícula ativa
+                  value:
+                    message: "O candidato não está matriculado neste curso."
+        '413':
+          $ref: '#/components/responses/CorpoGrande'
+        '503':
+          description: Acesso automático não habilitado no Moodle, ou serviço ocupado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+              example:
+                message: "O acesso automático à prova não está habilitado no Moodle."
   /local/faicrm/rest_json.php/core_completion_get_course_completion_status:
     post:
       tags: [Consultas auxiliares]
@@ -1298,6 +1411,10 @@ components:
       type: http
       scheme: bearer
       description: Token permanente do usuário técnico do serviço "CRM Vestibular FAI". Fica só no backend do CRM.
+    ssoBearerAuth:
+      type: http
+      scheme: bearer
+      description: Token permanente do usuário ws_sso do serviço "CRM SSO Vestibular FAI" (MOODLE_SSO_TOKEN). Só gera o link de acesso à prova.
   schemas:
     Erro:
       type: object
@@ -1404,6 +1521,21 @@ components:
           format: date-time
           nullable: true
           description: Fechamento da prova para esse candidato, se `prazo` foi informado.
+    LinkProva:
+      type: object
+      required: [url, expiraem]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Link de uso único. Redirecione o navegador do candidato para ele na hora; não grave em log.
+        expiraem:
+          type: string
+          format: date-time
+          description: Fim da validade do link (ISO 8601).
+      example:
+        url: "https://vestibular.faifaculdade.com.br/local/faicrm/entrar.php?key=3f2a9c0d8e7b6a5f4e3d2c1b0a9f8e7d&cmid=22"
+        expiraem: "2026-10-13T10:02:00-03:00"
     NovoCandidato:
       type: object
       required: [username, password, firstname, lastname, email]

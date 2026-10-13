@@ -1,8 +1,57 @@
 # Contrato da API — Integração CRM ↔ Moodle (Vestibular FAI)
 
-API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova** e **liberar uma nova tentativa da prova** (recaptação).
+API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova**, **liberar uma nova tentativa da prova** (recaptação) e **levar o candidato já logado à prova** (acesso automático).
 
 Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
+
+**Versão do contrato:** 1.9.0, de 13/10/2026 (plugin `local_faicrm` 1.9.0).
+
+---
+
+## 0. O que mudou nesta versão — o que o CRM precisa fazer
+
+**Novidade:** a **operação 4.10**, de acesso automático à prova (SSO). O candidato clica em **"Realizar minha prova"** no CRM e abre a prova no Moodle **já logado**, sem senha e sem segundo login.
+
+**As operações 4.1 a 4.9 não mudaram:** mesmos endereços, parâmetros, respostas e erros, com o mesmo `MOODLE_API_TOKEN`. Nada do que já funciona precisa ser alterado.
+
+### ⚠️ Diferença em relação ao que estava previsto
+O CRM foi preparado para chamar `auth_userkey_request_login_url` em `/webservice/rest/server.php`, ler `loginurl` e acrescentar `wantsurl`. **Não use essa função.** Ela gera link de login para **qualquer** usuário do Moodle, inclusive administradores, e o token não pode ser restringido por IP, porque o CRM não tem IP fixo. Por segurança, a FAI deixa essa função **desligada**.
+
+No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera link para **candidatos** matriculados em provas de vestibular. As diferenças:
+
+| | Previsto antes (não usar) | Agora (usar) |
+|---|---|---|
+| Função | `auth_userkey_request_login_url` | **`local_faicrm_gerar_link_prova`** |
+| Endereço | `/webservice/rest/server.php` (formulário) | **`/local/faicrm/rest_json.php/local_faicrm_gerar_link_prova`** (JSON, como as outras operações) |
+| Autenticação | `wstoken` no corpo | header **`Authorization: Bearer {MOODLE_SSO_TOKEN}`** |
+| Corpo | `user[username]=<CPF>` | **`{"username": "<CPF>", "cmid": <id de acesso da prova>}`** |
+| Resposta | `{"loginurl": "..."}` | **`{"url": "...", "expiraem": "..."}`** |
+| Destino | o CRM acrescentava `&wantsurl=...` | **já vem no link**: não acrescente nada |
+
+### Checklist de implementação no CRM
+1. **Segredo novo `MOODLE_SSO_TOKEN`**, enviado à parte por um canal seguro. Guarde-o só no backend.
+   - Ele é **diferente** do `MOODLE_API_TOKEN`, que continua igual.
+   - Cada token só funciona nas suas operações: o do SSO só chama a 4.10, e o da API não chama a 4.10. Usar o token errado dá `403`.
+2. **Configuração do `cmid` da prova**, o id de acesso. No Vestibular 2027.1 é **`22`**.
+   - O `cmid` também vem na operação 4.7, campo `cmid`.
+   - Não confunda com o `quizid` (`id`, usado na 4.8 e na 4.9).
+   - Em um vestibular novo, basta configurar o `cmid` da prova nova, sem nenhuma outra mudança.
+3. **No clique de "Realizar minha prova"**, o **backend** do CRM:
+   1. chama a 4.10 com o CPF do candidato logado no CRM (o mesmo `username` do cadastro, só dígitos) e o `cmid`;
+   2. com `200`, responde ao navegador com **redirecionamento `302` para `url`**, enviando `Cache-Control: no-store` e `Referrer-Policy: no-referrer`;
+   3. com erro, mostra a mensagem ao candidato (tabela da 4.10) e **não redireciona**.
+4. **Gere um link novo a cada clique.** Não reaproveite nem guarde links:
+   - o link vale **2 minutos**;
+   - funciona **uma vez só**;
+   - cada link novo invalida o anterior.
+5. **Não grave a `url` nem a resposta da 4.10 em log**, banco ou ferramenta de monitoramento. Durante a validade, o link equivale a uma senha. Também não o envie por e-mail, SMS ou WhatsApp.
+6. **Não envie o IP do candidato.** O fluxo não precisa dele.
+7. **Teste de aceite** com o candidato piloto, depois que a FAI avisar que o Moodle está configurado:
+   - clicar em "Realizar minha prova" → abre a prova já logado;
+   - voltar e clicar de novo → abre de novo, porque o CRM gerou um link novo;
+   - abrir uma `url` antiga (já usada) → o Moodle mostra "Este link de acesso já foi usado ou expirou…".
+
+Se o computador já estiver logado no Moodle com outra pessoa (computador compartilhado), o Moodle troca para o candidato certo sozinho. O CRM não precisa fazer nada.
 
 ---
 
@@ -12,9 +61,11 @@ Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 |---|---|
 | URL base | `https://vestibular.faifaculdade.com.br` |
 | Endpoint | `POST {URL base}/local/faicrm/rest_json.php/{operação}` |
-| Token | fornecido à parte |
+| Token das operações 4.1 a 4.9 | fornecido à parte (`MOODLE_API_TOKEN`) |
+| Token do acesso automático (só a 4.10) | fornecido à parte (`MOODLE_SSO_TOKEN`) |
 | `courseid` do Vestibular | fornecido à parte |
 | `quizid` da prova | fornecido à parte |
+| `cmid` da prova (acesso automático, 4.10) | `22` no Vestibular 2027.1 (ou pela 4.7) |
 
 Exemplo completo:
 
@@ -33,7 +84,7 @@ Content-Type: application/json
 ## 2. Regras gerais
 
 - **Método:** sempre `POST`. Qualquer outro método → `405`.
-- **Autenticação:** header `Authorization: Bearer {TOKEN}`. O token fica **só no backend do CRM**; nunca no navegador nem no app do candidato.
+- **Autenticação:** header `Authorization: Bearer {TOKEN}`, com o `MOODLE_API_TOKEN` nas operações 4.1 a 4.9 e o `MOODLE_SSO_TOKEN` na 4.10. Os tokens ficam **só no backend do CRM**; nunca no navegador nem no app do candidato.
 - **Corpo:** `Content-Type: application/json`, sempre um **objeto** JSON (`{}` quando a operação não tem parâmetros). Lista, texto ou número na raiz → `400`. Limite de 1 MB → acima disso `413`.
 - **Respostas:** sempre JSON, em UTF-8. Sucesso sem conteúdo → `204` (corpo vazio).
 - **Datas:** ISO 8601 com fuso (`2026-10-07T14:32:10-03:00`) ou `null`. Filtros de data recebem só a data (`AAAA-MM-DD`, horário de Brasília).
@@ -52,7 +103,7 @@ Todo erro tem o mesmo formato, com a mensagem em português, pronta para exibir 
 |---|---|---|
 | `400` | Dado inválido (campo faltando, formato errado, senha fraca, JSON inválido) | Corrigir o pedido; mostrar a `message` |
 | `401` | Token ausente ou inválido | Verificar a configuração do token |
-| `403` | Operação ou papel não permitido, ou chamada de um IP não autorizado | Não repetir; verificar a configuração |
+| `403` | Operação ou papel não permitido, token de outra operação, ou chamada de um IP não autorizado. Na 4.10, também prova ou conta não liberada para o acesso automático | Não repetir; verificar a configuração ou mostrar a `message` |
 | `404` | Curso, prova, candidato, matrícula ou nova tentativa não encontrados | Tratar como "não existe" |
 | `405` | Método diferente de POST | Corrigir o pedido |
 | `409` | Conflito com o estado atual (já existe, já matriculado, ainda pode fazer a prova…) | Ver a regra de cada operação |
@@ -74,6 +125,7 @@ Todo erro tem o mesmo formato, com a mensagem em português, pronta para exibir 
 | 4.7 | `local_faicrm_listar_provas` | Listar as provas de um curso |
 | 4.8 | `local_faicrm_liberar_nova_tentativa` | Liberar nova tentativa (recaptação) |
 | 4.9 | `local_faicrm_cancelar_nova_tentativa` | Cancelar a nova tentativa |
+| 4.10 | `local_faicrm_gerar_link_prova` | Link de acesso automático à prova (**token do SSO**) |
 
 ### 4.1 Localizar candidato — `core_user_get_users_by_field`
 
@@ -303,6 +355,48 @@ Desfaz a última liberação enquanto o candidato ainda não a usou.
 | `409` | O candidato já iniciou a nova tentativa. |
 | `503` | Serviço temporariamente indisponível. Tente novamente mais tarde. |
 
+### 4.10 Link de acesso automático à prova — `local_faicrm_gerar_link_prova`
+
+Gera um **link de uso único** que leva o candidato à prova **já logado**, sem senha. Vale para as provas dos vestibulares que a FAI liberou no Moodle. Vestibular novo funciona do mesmo jeito: é só usar o `cmid` da prova nova. Use o token **`MOODLE_SSO_TOKEN`**: o `MOODLE_API_TOKEN` não chama esta operação, e o token do SSO não chama as outras.
+
+```json
+{ "username": "12345678900", "cmid": 22 }
+```
+
+| Campo | Tipo | Obrigatório | Regra |
+|---|---|---|---|
+| `username` | texto | sim | CPF do candidato (o mesmo `username` do cadastro) |
+| `cmid` | inteiro | sim | id de acesso da prova (o `cmid` da 4.7) |
+
+**200**
+```json
+{
+  "url": "https://vestibular.faifaculdade.com.br/local/faicrm/entrar.php?key=…&cmid=22",
+  "expiraem": "2026-10-13T10:02:00-03:00"
+}
+```
+
+Redirecione o navegador do candidato para `url` **na hora**. O link vale até `expiraem` (2 minutos) e **uma vez só**. O destino (a prova) já vem no link, então não acrescente nada a ele.
+
+Erros, na ordem em que são verificados:
+
+| Status | `message` | Causa | O que o CRM faz |
+|---|---|---|---|
+| `401` | Token de acesso inválido ou ausente. | `MOODLE_SSO_TOKEN` errado ou vencido | Alertar a equipe técnica. Ao candidato: "Não foi possível abrir a prova agora. Tente novamente mais tarde." |
+| `403` | Operação não permitida para esta integração. | Usou o `MOODLE_API_TOKEN` (ou outro token) | Corrigir a configuração (usar o `MOODLE_SSO_TOKEN`) |
+| `503` | O acesso automático à prova não está habilitado no Moodle. | Configuração pendente na FAI | Alertar a equipe técnica; mostrar a `message` |
+| `404` | Prova não encontrada. | `cmid` errado ou prova excluída | Conferir o `cmid` configurado |
+| `403` | Esta prova não está liberada para o acesso automático. | A prova não está numa categoria de vestibular liberada pela FAI | Alertar a equipe técnica |
+| `404` | Candidato não encontrado. | CPF sem cadastro no Moodle | Cadastrar e matricular (4.2, 4.3) e tentar de novo |
+| `403` | Este usuário não pode entrar na prova pelo acesso automático. | Conta de equipe, administrador, ou aluno de curso que não é de vestibular | Mostrar a `message`; o candidato procura a FAI |
+| `409` | O candidato está suspenso ou com cadastro incompleto no Moodle. | Conta suspensa no Moodle | Mostrar a `message`; o candidato procura a FAI |
+| `409` | O candidato não está matriculado neste curso. | Sem matrícula ativa no curso da prova | Matricular (4.3) e tentar de novo, se ele tiver direito |
+| `503` | Serviço temporariamente indisponível. Tente novamente mais tarde. | Instabilidade passageira | Tentar de novo depois de alguns segundos |
+
+Erros **depois** do redirecionamento aparecem na tela do Moodle, não na API. Exemplo: o link aberto depois de 2 minutos ou pela segunda vez mostra "Este link de acesso já foi usado ou expirou. Volte ao CRM e clique de novo em "Realizar minha prova"." O candidato só precisa voltar ao CRM e clicar de novo.
+
+Também funciona pelo servidor REST nativo do Moodle (`/webservice/rest/server.php`, `wsfunction=local_faicrm_gerar_link_prova`, `moodlewsrestformat=json`), com os mesmos parâmetros. Mesmo assim, **use o `rest_json.php`**: ele devolve os erros acima em português e não deixa a resposta em cache.
+
 ---
 
 ## 5. Fluxos
@@ -326,3 +420,14 @@ Desfaz a última liberação enquanto o candidato ainda não a usou.
 5. Se a oferta for cancelada antes de ele começar: **cancelar** (4.9).
 
 Um `409` "ainda pode fazer a prova" ou "tentativa em andamento" significa que não é preciso liberar.
+
+### Acesso automático à prova ("Realizar minha prova")
+1. O candidato clica em "Realizar minha prova" no CRM.
+2. O **backend** do CRM chama a 4.10 com o CPF dele e o `cmid` da prova, usando o `MOODLE_SSO_TOKEN`.
+3. O CRM responde ao navegador com um **redirecionamento** (`302`) para `url`, com `Cache-Control: no-store` e `Referrer-Policy: no-referrer`.
+4. O Moodle loga o candidato e abre a prova.
+
+Cuidados: o link equivale a uma senha por 2 minutos.
+- Não grave a `url` nem a resposta em log.
+- Não envie o link por e-mail ou WhatsApp.
+- Gere um link novo a cada clique, porque cada link novo invalida o anterior.

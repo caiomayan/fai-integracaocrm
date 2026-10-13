@@ -79,5 +79,19 @@ docker compose exec -u www-data moodle php -r 'define("CLI_SCRIPT",1);require("/
 
 Guia completo (fluxo, parâmetros, erros, implantação na FAI): [docs/integracao-crm.md](integracao-crm.md).
 
+## Testes automatizados (PHPUnit)
+
+O plugin tem testes PHPUnit em `moodle-plugin/local/faicrm/tests/`, rodados dentro do container pelo `scripts/phpunit.sh` (a stack precisa estar de pé):
+
+```bash
+scripts/phpunit.sh init                                                 # prepara o ambiente de testes
+scripts/phpunit.sh                                                      # roda toda a suíte do local_faicrm
+scripts/phpunit.sh local/faicrm/tests/external/gerar_link_prova_test.php --filter test_tudo   # um arquivo (e um teste)
+```
+
+- O `init` demora cerca de 7 minutos na primeira vez (instala um Moodle de testes). Depois é incremental: só reinstala quando a versão de um plugin muda, e regenera o `phpunit.xml` com os testes novos.
+- O banco de testes usa o prefixo `phpu_` **no mesmo MariaDB** do Moodle (o banco de desenvolvimento, sem prefixo de teste, não é tocado), e os arquivos de teste ficam no volume `phpunitdata`.
+- A imagem já traz o plugin **auth_userkey 2022081902** (usado pelo acesso automático à prova). Para uma imagem sem ele, por exemplo para testar a instalação pelo painel, construa com `WITH_AUTH_USERKEY=0` (`docker compose build --build-arg WITH_AUTH_USERKEY=0 moodle`).
+
 ## Próxima fase
 Implantar o plugin `local_faicrm` e o serviço no Moodle da FAI (checklist em [docs/integracao-crm.md](integracao-crm.md)), validar a política de senha e o `courseid` reais, e integrar o backend do CRM usando o token.

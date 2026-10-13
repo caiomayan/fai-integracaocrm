@@ -44,6 +44,7 @@ services:
       - "${MOODLE_PORT}:80"
     volumes:
       - moodledata:/var/www/moodledata
+      - phpunitdata:/var/www/phpunit_dataroot
       - ./moodle-plugin/local/faicrm:/var/www/html/local/faicrm
       - ./output:/opt/fai/output
 
@@ -62,3 +63,4 @@ services:
 volumes:
   dbdata:
   moodledata:
+  phpunitdata:

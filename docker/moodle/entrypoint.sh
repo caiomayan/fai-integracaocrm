@@ -3,6 +3,7 @@ set -e
 
 MOODLE_DIR=/var/www/html
 DATAROOT=/var/www/moodledata
+PHPUNIT_DATAROOT=/var/www/phpunit_dataroot
 asweb() { su -s /bin/sh www-data -c "$*"; }
 
 # config.php é gerado a cada subida a partir das variáveis de ambiente
@@ -24,12 +25,15 @@ global \$CFG;
 \$CFG->admin     = 'admin';
 \$CFG->directorypermissions = 02777;
 \$CFG->noemailever = true; // dev: não há servidor de e-mail nos containers
+// PHPUnit: mesmo banco, outro prefixo e outro dataroot (scripts/phpunit.sh).
+\$CFG->phpunit_prefix   = 'phpu_';
+\$CFG->phpunit_dataroot = '${PHPUNIT_DATAROOT}';
 require_once(__DIR__ . '/lib/setup.php');
 PHP
 chown www-data:www-data "$MOODLE_DIR/config.php"
 
-mkdir -p "$DATAROOT/lang"
-chown -R www-data:www-data "$DATAROOT"
+mkdir -p "$DATAROOT/lang" "$PHPUNIT_DATAROOT"
+chown -R www-data:www-data "$DATAROOT" "$PHPUNIT_DATAROOT"
 if [ -n "$MOODLE_LANG" ] && [ ! -d "$DATAROOT/lang/$MOODLE_LANG" ] && [ -f "/opt/langpacks/$MOODLE_LANG.zip" ]; then
     asweb "unzip -q /opt/langpacks/$MOODLE_LANG.zip -d $DATAROOT/lang"
 fi

@@ -1,5 +1,9 @@
 # Histórico de versões — local_faicrm
 
+## 1.9.1 (2026101301)
+- Acesso automático à prova: além das categorias, é possível liberar **cursos específicos** (configuração nova "Cursos liberados", `local_faicrm/sso_cursos`), para quando todos os cursos estão numa categoria só. Categorias e cursos valem juntos (união); curso excluído é ignorado e a página inicial nunca entra. Sem nenhuma categoria e nenhum curso, o acesso automático continua desligado.
+- O diagnóstico do acesso automático passa a contar categorias **ou** cursos liberados.
+
 ## 1.9.0 (2026101300)
 Acesso automático à prova (SSO, spec 006):
 - Função nova **`local_faicrm_gerar_link_prova`** (`username` + `cmid`) → `{url, expiraem}`. Gera um link de **uso único** do plugin User key authentication (`auth_userkey`) que leva o candidato **já logado** à prova.

@@ -71,7 +71,7 @@ class gerar_link_prova extends external_api {
         if (!link::available()) {
             throw new moodle_exception('ssoindisponivel', 'local_faicrm');
         }
-        elegibilidade::require_categories();
+        elegibilidade::require_released_courses();
 
         $cm = elegibilidade::find_quiz($params['cmid']);
         $course = get_course($cm->course);

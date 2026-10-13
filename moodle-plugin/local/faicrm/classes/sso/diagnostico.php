@@ -118,15 +118,18 @@ class diagnostico {
     }
 
     /**
-     * Checks of our own settings: released categories and the SSO web service.
+     * Checks of our own settings: released categories or courses and the SSO web service.
      *
      * @param callable $add Adds an item: code, status and an optional string argument.
      */
     private static function check_sso(callable $add): void {
         global $DB;
 
-        $categories = elegibilidade::released_categories();
-        $add('sso_categorias', $categories ? 'OK' : 'AVISO', count(elegibilidade::configured_categories()));
+        $released = (object) [
+            'categorias' => count(elegibilidade::configured_categories()),
+            'cursos' => count(elegibilidade::configured_courses()),
+        ];
+        $add('sso_liberados', elegibilidade::released_categories() || $released->cursos ? 'OK' : 'AVISO', $released);
 
         $service = $DB->get_record('external_services', ['shortname' => 'crm_sso_vestibular_fai']);
         $add('sso_servico_habilitado', $service && $service->enabled ? 'OK' : 'FALHA');

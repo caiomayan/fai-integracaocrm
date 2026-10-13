@@ -145,10 +145,22 @@ final class diagnostico_test extends \advanced_testcase {
         $this->assertSame('AVISO', $this->item('userkey_cria_atualiza')['status']);
     }
 
-    public function test_sem_categorias_e_aviso(): void {
+    public function test_sem_categorias_e_sem_cursos_e_aviso(): void {
         unset_config('sso_categorias', 'local_faicrm');
+        unset_config('sso_cursos', 'local_faicrm');
 
-        $this->assertSame('AVISO', $this->item('sso_categorias')['status']);
+        $this->assertSame('AVISO', $this->item('sso_liberados')['status']);
+    }
+
+    public function test_so_cursos_liberados_ja_e_ok_e_o_texto_mostra_os_dois_numeros(): void {
+        $curso = $this->getDataGenerator()->create_course();
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) $curso->id, 'local_faicrm');
+
+        $item = $this->item('sso_liberados');
+        $this->assertSame('OK', $item['status']);
+        $this->assertStringContainsString('0', $item['text']);
+        $this->assertStringContainsString('1', $item['text']);
     }
 
     public function test_servico_do_sso_desabilitado_e_falha(): void {

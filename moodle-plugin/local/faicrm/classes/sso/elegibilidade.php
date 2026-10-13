@@ -81,12 +81,51 @@ class elegibilidade {
     }
 
     /**
-     * The feature is off when no category is released (fails closed).
+     * Course ids released one by one (setting local_faicrm/sso_cursos), only the ones that still exist.
+     *
+     * The front page course (SITEID) never counts.
+     *
+     * @return int[]
+     */
+    public static function configured_courses(): array {
+        global $DB;
+
+        $value = (string) get_config('local_faicrm', 'sso_cursos');
+        $ids = array_map('intval', array_filter(array_map('trim', explode(',', $value)), 'strlen'));
+        $ids = array_values(array_unique(array_filter($ids, fn($id) => $id > 0 && $id !== (int) SITEID)));
+        if (!$ids) {
+            return [];
+        }
+        [$insql, $params] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'cfgc');
+        return array_map('intval', $DB->get_fieldset_select('course', 'id', "id $insql", $params));
+    }
+
+    /**
+     * Courses released for the automatic access: the courses of the released categories (subcategories included)
+     * plus the courses released one by one. The front page course (SITEID) never enters.
+     *
+     * @return int[]
+     */
+    public static function released_courses(): array {
+        global $DB;
+
+        $courses = self::configured_courses();
+        $categories = self::released_categories();
+        if ($categories) {
+            [$insql, $params] = $DB->get_in_or_equal($categories, SQL_PARAMS_NAMED, 'relcat');
+            $bycategory = $DB->get_fieldset_select('course', 'id', "category $insql", $params);
+            $courses = array_merge($courses, array_map('intval', $bycategory));
+        }
+        return array_values(array_diff(array_unique($courses), [(int) SITEID]));
+    }
+
+    /**
+     * The feature is off when no course is released, by category or by course (fails closed).
      *
      * @throws moodle_exception ssoindisponivel
      */
-    public static function require_categories(): void {
-        if (!self::released_categories()) {
+    public static function require_released_courses(): void {
+        if (!self::released_courses()) {
             throw new moodle_exception('ssoindisponivel', 'local_faicrm');
         }
     }
@@ -107,13 +146,13 @@ class elegibilidade {
     }
 
     /**
-     * The course of the quiz must be inside a released category.
+     * The course of the quiz must be a released course.
      *
      * @param stdClass $course Course of the quiz.
      * @throws moodle_exception provanaoliberada
      */
     public static function require_released_quiz(stdClass $course): void {
-        if (!in_array((int) $course->category, self::released_categories(), true)) {
+        if (!in_array((int) $course->id, self::released_courses(), true)) {
             throw new moodle_exception('provanaoliberada', 'local_faicrm');
         }
     }
@@ -141,7 +180,7 @@ class elegibilidade {
 
     /**
      * The account must be of a candidate: no admin, no guest, no other role than Student, every role only in
-     * courses (or activities) of the released categories, and no dangerous permission in the system context.
+     * released courses (or their activities), and no dangerous permission in the system context.
      *
      * @param stdClass $user The user.
      * @param context_module $quizcontext Context of the quiz (permissions are checked there too).
@@ -154,10 +193,10 @@ class elegibilidade {
             throw new moodle_exception('contanaopermitida', 'local_faicrm');
         }
 
-        // Role assignments that are not Student in a course (or activity) of a released category.
-        $categories = self::released_categories();
-        [$coursecatsql, $coursecatparams] = $DB->get_in_or_equal($categories, SQL_PARAMS_NAMED, 'catc');
-        [$modcatsql, $modcatparams] = $DB->get_in_or_equal($categories, SQL_PARAMS_NAMED, 'catm');
+        // Role assignments that are not Student in a course (or activity) of a released course.
+        $courses = self::released_courses();
+        [$coursesql, $courseparams] = $DB->get_in_or_equal($courses, SQL_PARAMS_NAMED, 'relc');
+        [$modcoursesql, $modcourseparams] = $DB->get_in_or_equal($courses, SQL_PARAMS_NAMED, 'relm');
         $bad = $DB->count_records_sql(
             "SELECT COUNT(1)
                FROM {role_assignments} ra
@@ -168,18 +207,17 @@ class elegibilidade {
                      OR NOT (
                          (ctx.contextlevel = :levelcourse AND EXISTS (
                              SELECT 1 FROM {course} c
-                              WHERE c.id = ctx.instanceid AND c.category $coursecatsql))
+                              WHERE c.id = ctx.instanceid AND c.id $coursesql))
                          OR (ctx.contextlevel = :levelmodule AND EXISTS (
                              SELECT 1 FROM {course_modules} cm
-                               JOIN {course} cmc ON cmc.id = cm.course
-                              WHERE cm.id = ctx.instanceid AND cmc.category $modcatsql))
+                              WHERE cm.id = ctx.instanceid AND cm.course $modcoursesql))
                      ))",
             [
                 'userid' => $user->id,
                 'student' => 'student',
                 'levelcourse' => CONTEXT_COURSE,
                 'levelmodule' => CONTEXT_MODULE,
-            ] + $coursecatparams + $modcatparams
+            ] + $courseparams + $modcourseparams
         );
         if ($bad > 0) {
             throw new moodle_exception('contanaopermitida', 'local_faicrm');

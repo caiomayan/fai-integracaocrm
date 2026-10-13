@@ -52,5 +52,21 @@ if ($hassiteconfig) {
             [],
             core_course_category::make_categories_list()
         ));
+
+        // Courses released one by one (the front page course is not a choice).
+        $courses = [];
+        foreach (get_courses('all', 'c.fullname ASC, c.id ASC', 'c.id, c.fullname, c.shortname') as $course) {
+            if ((int) $course->id !== (int) SITEID) {
+                $courses[$course->id] = format_string($course->fullname)
+                    . ' (' . s($course->shortname) . ', id ' . $course->id . ')';
+            }
+        }
+        $settings->add(new admin_setting_configmultiselect(
+            'local_faicrm/sso_cursos',
+            get_string('sso_cursos', 'local_faicrm'),
+            get_string('sso_cursos_desc', 'local_faicrm'),
+            [],
+            $courses
+        ));
     }
 }

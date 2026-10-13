@@ -458,6 +458,83 @@ final class gerar_link_prova_test extends \advanced_testcase {
         $this->assert_erro('ssoindisponivel', fn() => $this->gerar('12345678900'));
     }
 
+    public function test_so_curso_liberado_sem_categoria_funciona(): void {
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) $this->course->id, 'local_faicrm');
+
+        $this->assertArrayHasKey('url', $this->gerar('12345678900'));
+    }
+
+    public function test_outro_curso_da_mesma_categoria_nao_esta_liberado(): void {
+        $gen = $this->getDataGenerator();
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) $this->course->id, 'local_faicrm');
+        $outro = $gen->create_course(['category' => $this->course->category]);
+        $prova = $gen->create_module('quiz', ['course' => $outro->id]);
+        $candidato = $gen->create_user(['username' => '30303030303']);
+        $gen->enrol_user($candidato->id, $outro->id, 'student');
+
+        $this->assert_erro('provanaoliberada', fn() => $this->gerar('30303030303', (int) $prova->cmid));
+    }
+
+    public function test_estudante_de_outro_curso_da_mesma_categoria_nao_liberado_nao_entra(): void {
+        $gen = $this->getDataGenerator();
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) $this->course->id, 'local_faicrm');
+        $regular = $gen->create_course(['category' => $this->course->category]);
+        $gen->enrol_user($this->candidato->id, $regular->id, 'student');
+
+        $this->assert_erro('contanaopermitida', fn() => $this->gerar('12345678900'));
+    }
+
+    public function test_sem_curso_e_sem_categoria_o_sso_fica_indisponivel(): void {
+        unset_config('sso_categorias', 'local_faicrm');
+        unset_config('sso_cursos', 'local_faicrm');
+        $this->assert_erro('ssoindisponivel', fn() => $this->gerar('12345678900'));
+
+        set_config('sso_categorias', '', 'local_faicrm');
+        set_config('sso_cursos', '', 'local_faicrm');
+        $this->assert_erro('ssoindisponivel', fn() => $this->gerar('12345678900'));
+    }
+
+    public function test_categoria_e_curso_juntos_valem_pela_uniao(): void {
+        $gen = $this->getDataGenerator();
+        $categoria = $gen->create_category();
+        $cursocat = $gen->create_course(['category' => $categoria->id]);
+        $provacat = $gen->create_module('quiz', ['course' => $cursocat->id]);
+        $candcat = $gen->create_user(['username' => '40404040404']);
+        $gen->enrol_user($candcat->id, $cursocat->id, 'student');
+        // A categoria libera um curso; o curso do setUp é liberado sozinho, por id.
+        set_config('sso_categorias', (string) $categoria->id, 'local_faicrm');
+        set_config('sso_cursos', (string) $this->course->id, 'local_faicrm');
+
+        $this->assertArrayHasKey('url', $this->gerar('40404040404', (int) $provacat->cmid));
+        $this->assertArrayHasKey('url', $this->gerar('12345678900'));
+    }
+
+    public function test_curso_liberado_que_foi_excluido_e_ignorado(): void {
+        $gen = $this->getDataGenerator();
+        $apagado = $gen->create_course();
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) $apagado->id, 'local_faicrm');
+        delete_course($apagado, false);
+
+        // Sem nada que sobre: indisponível.
+        $this->assert_erro('ssoindisponivel', fn() => $this->gerar('12345678900'));
+
+        // Com um curso válido ao lado, o excluído é só ignorado.
+        set_config('sso_cursos', $apagado->id . ',' . $this->course->id, 'local_faicrm');
+        $this->assertArrayHasKey('url', $this->gerar('12345678900'));
+    }
+
+    public function test_a_pagina_inicial_nunca_entra_no_conjunto(): void {
+        unset_config('sso_categorias', 'local_faicrm');
+        set_config('sso_cursos', (string) SITEID, 'local_faicrm');
+
+        $this->assertNotContains(SITEID, \local_faicrm\sso\elegibilidade::released_courses());
+        $this->assert_erro('ssoindisponivel', fn() => $this->gerar('12345678900'));
+    }
+
     public function test_candidato_nao_confirmado(): void {
         $gen = $this->getDataGenerator();
         $user = $gen->create_user(['username' => '12312312312', 'confirmed' => 0]);

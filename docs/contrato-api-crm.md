@@ -48,18 +48,35 @@ No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera li
 | Resposta | `{"loginurl": "..."}` | **`{"url": "...", "expiraem": "..."}`** |
 | Destino | o CRM acrescentava `&wantsurl=...` | **já vem no link**: não acrescente nada |
 
+### Pré-requisitos do lado da FAI (não são tarefa do CRM)
+Antes de o SSO funcionar, a FAI configura no Moodle:
+- o plugin `local_faicrm` 1.9.1 e o `auth_userkey`;
+- o **curso de cada vestibular liberado para o acesso automático** (em "Cursos liberados" ou "Categorias liberadas");
+- a conta técnica `ws_sso` e o token, que a FAI entrega ao CRM.
+
+Sem o curso liberado, a 4.10 responde `403` "Esta prova não está liberada para o acesso automático.". Sem a configuração, responde `503` "O acesso automático à prova não está habilitado no Moodle.". Nos dois casos o problema é de configuração no Moodle, **não do CRM**: avise a equipe da FAI.
+
+**A cada vestibular novo:** a FAI libera o curso novo no Moodle e informa o `cmid` da prova nova. O CRM só passa a usar esse `cmid`.
+
 ### Checklist de implementação no CRM
 1. **Segredo novo `MOODLE_SSO_TOKEN`**, enviado à parte por um canal seguro. Guarde-o só no backend.
    - Ele é **diferente** do `MOODLE_API_TOKEN`, que continua igual.
    - Cada token só funciona nas suas operações: o do SSO só chama a 4.10, e o da API não chama a 4.10. Usar o token errado dá `403`.
+   - O token vale **1 ano**. Quando vencer, a 4.10 responde `401`, e a FAI envia um token novo.
 2. **Configuração do `cmid` da prova**, o id de acesso. No Vestibular 2027.1 é **`22`**.
    - O `cmid` também vem na operação 4.7, campo `cmid`.
    - Não confunda com o `quizid` (`id`, usado na 4.8 e na 4.9).
-   - Em um vestibular novo, basta configurar o `cmid` da prova nova. Antes, a FAI libera o curso novo no Moodle.
+   - Guarde os ids **por vestibular** (`courseid`, `quizid` e `cmid`), porque cada vestibular tem os seus. Em um vestibular novo, o CRM só configura o `cmid` da prova nova, depois que a FAI liberar o curso (veja os pré-requisitos).
 3. **No clique de "Realizar minha prova"**, o **backend** do CRM:
    1. chama a 4.10 com o CPF do candidato logado no CRM (o mesmo `username` do cadastro, só dígitos) e o `cmid`;
    2. com `200`, responde ao navegador com **redirecionamento `302` para `url`**, enviando `Cache-Control: no-store` e `Referrer-Policy: no-referrer`;
    3. com erro, mostra a mensagem ao candidato (tabela da 4.10) e **não redireciona**.
+
+   - **O candidato precisa estar cadastrado e matriculado antes** (fluxo de inscrição, 4.1 a 4.3). Senão, a 4.10 responde `404` ou `409`.
+   - **Se o front-end for uma SPA** e não puder receber o `302`, o backend devolve a `url` ao front-end. O front-end navega **na hora** com `window.location.replace(url)`, sem guardá-la em estado, `localStorage` nem log. Não use `fetch` ou XHR para abrir a `url`, porque a sessão do Moodle precisa ser criada no navegador.
+   - **Pode abrir na mesma aba ou numa aba nova.** Os dois funcionam.
+   - **Timeout de 10 s** na chamada à 4.10. Em `500` ou `503`, tente **uma vez** de novo depois de alguns segundos. Em `4xx`, não repita: mostre a mensagem.
+   - **O botão pode ficar sempre visível.** Se o candidato já tiver usado todas as tentativas ou a prova estiver fechada, a página da prova no Moodle informa isso. Para esconder ou trocar o texto do botão, use o `podefazerprova` dos resultados (4.5).
 4. **Gere um link novo a cada clique.** Não reaproveite nem guarde links:
    - o link vale **2 minutos**;
    - funciona **uma vez só**;
@@ -542,7 +559,7 @@ Um `409` "ainda pode fazer a prova" ou "tentativa em andamento" significa que n�
 ### Acesso automático à prova ("Realizar minha prova")
 1. O candidato clica em "Realizar minha prova" no CRM.
 2. O **backend** do CRM chama a 4.10 com o CPF dele e o `cmid` da prova, usando o `MOODLE_SSO_TOKEN`.
-3. O CRM responde ao navegador com um **redirecionamento** (`302`) para `url`, com `Cache-Control: no-store` e `Referrer-Policy: no-referrer`.
+3. O CRM responde ao navegador com um **redirecionamento** (`302`) para `url`, com `Cache-Control: no-store` e `Referrer-Policy: no-referrer`. Numa SPA, o front-end navega na hora com `window.location.replace(url)`.
 4. O Moodle loga o candidato e abre a prova.
 
 Cuidados: o link equivale a uma senha por 2 minutos.

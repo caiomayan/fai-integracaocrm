@@ -1,5 +1,13 @@
 # Histórico de versões — local_faicrm
 
+## 1.10.0 (2026101401)
+Retorno ao CRM depois da prova (spec 007):
+- Configuração nova na página do acesso automático: **"URL de retorno após a prova"** (`local_faicrm/retorno_url`; só `https://`, ou `http://` se o Moodle for http; vazia = desligado) e **"Mensagem ao concluir"** (opcional).
+- Quem entrou pelo link do SSO e **envia a prova do link** com o navegador aberto (botão ou fim do tempo) vê a tela "Prova enviada com sucesso!", sem nota nem respostas, tem a sessão encerrada e é levado em 5 s (ou no botão "Voltar agora") para a URL configurada com `status=concluida&cmid=<prova>`. Nada pessoal vai na URL.
+- Sem efeito em login normal, em outra prova, com a URL vazia ou em tentativa enviada pelo cron.
+- Segurança: a marcação do retorno é presa ao link por uma assinatura HMAC (segredo criado na instalação/atualização, nunca em um pedido); o desvio tem trava contra reentrada; só desvia com a tentativa finalizada.
+- O link do SSO passa pela página nova `iniciar.php` antes da prova. O diagnóstico ganhou o item do retorno.
+
 ## 1.9.2 (2026101302)
 Notas da redação e das objetivas nos resultados do vestibular (spec 008):
 - A operação `local_faicrm_get_resultados_vestibular` ganha dois campos por candidato: **`nota_redacao`** (a questão da posição 1 da prova, a primeira com nota na ordem da prova; uma "Descrição" no início não conta) e **`nota_objetivas`** (todas as outras questões), na mesma escala da `nota`; a redação mais as objetivas dá a nota da tentativa. Duas casas decimais.

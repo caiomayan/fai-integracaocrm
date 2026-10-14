@@ -38,8 +38,8 @@ class diagnostico {
      */
     public static function run(): array {
         $items = [];
-        $add = function (string $code, string $status, $a = null) use (&$items): void {
-            $key = 'diag_' . $code . '_' . ($status === 'OK' ? 'ok' : 'bad');
+        $add = function (string $code, string $status, $a = null, string $suffix = '') use (&$items): void {
+            $key = 'diag_' . $code . '_' . ($suffix !== '' ? $suffix : ($status === 'OK' ? 'ok' : 'bad'));
             $items[] = ['code' => $code, 'status' => $status, 'text' => get_string($key, 'local_faicrm', $a)];
         };
 
@@ -145,5 +145,26 @@ class diagnostico {
             ['service' => $service->id, 'now' => time()]
         );
         $add('sso_servico_token', $tokens ? 'OK' : 'AVISO');
+
+        self::check_retorno($add);
+    }
+
+    /**
+     * Check of the return to the CRM after the quiz: off is fine (informative), on shows the domain, an invalid URL fails
+     * (the return stays off).
+     *
+     * @param callable $add Adds an item: code, status, string argument and string suffix.
+     */
+    private static function check_retorno(callable $add): void {
+        $add('retorno_segredo', retorno::has_secret() ? 'OK' : 'FALHA');
+
+        $raw = retorno::raw_url();
+        if ($raw === '') {
+            $add('retorno', 'OK', null, 'desligado');
+        } else if (retorno::url() === null) {
+            $add('retorno', 'FALHA', null, 'invalida');
+        } else {
+            $add('retorno', 'OK', (string) parse_url($raw, PHP_URL_HOST), 'ligado');
+        }
     }
 }

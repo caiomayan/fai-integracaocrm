@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.9.1
+  version: 1.10.0
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -896,6 +896,11 @@ paths:
         anterior. Só funciona para provas dos **cursos liberados** pela FAI (os vestibulares, por curso ou por categoria) e
         para **candidato** (conta só com o papel Estudante, só em cursos liberados) com matrícula ativa no curso da prova.
         Admin, equipe, contas técnicas e alunos de outros cursos recebem 403.
+
+        **Retorno (1.10.0):** quando a FAI configura a "URL de retorno após a prova", o candidato que entrou por este
+        link, ao terminar a prova, é deslogado do Moodle e levado a `{URL de retorno}?status=concluida&cmid={cmid}`
+        (GET, sem dados pessoais). Os parâmetros não provam nada: o resultado vem da operação de resultados.
+        Detalhes na seção 6 do contrato.
 
         Usa o token **do serviço "CRM SSO Vestibular FAI"** (`MOODLE_SSO_TOKEN`). Ele não chama as outras operações, e o
         token da integração não chama esta (403). Não grave a `url` em log: ela equivale a uma senha até `expiraem`.

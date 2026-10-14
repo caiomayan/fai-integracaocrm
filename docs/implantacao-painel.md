@@ -3,7 +3,7 @@
 Para quem tem acesso **só ao painel de administração** do Moodle, sem acesso ao servidor (terminal). Este roteiro foi executado do começo ao fim num Moodle 4.5.14+ limpo, **só pelo navegador**, em 09/10/2026, e a API funcionou com o token gerado no painel.
 
 Leva cerca de 20 minutos. Você vai precisar de:
-- **`local_faicrm-1.9.1.zip`**: [release v1.9.1](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.9.1);
+- **`local_faicrm-1.10.0.zip`**: [release v1.10.0](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.10.0);
 - **`papel-integracaocrm.xml`**: o papel pronto, com as 20 permissões ([`implantacao/papel-integracaocrm.xml`](../implantacao/papel-integracaocrm.xml), também anexado à release);
 - o **IP do servidor do CRM** (recomendado), para restringir o token.
 
@@ -85,17 +85,17 @@ Por canal seguro: a URL do Moodle, o **token**, o **id do curso** e o **id da pr
 
 ---
 
-# Acesso automático à prova (SSO) — a partir da 1.9.1
+# Acesso automático à prova (SSO) — a partir da 1.9.1; retorno ao CRM a partir da 1.10.0
 
 Com o SSO, o candidato clica em **"Realizar minha prova"** no CRM e cai na prova **já logado**, sem uma segunda senha ([spec 006](specs/006-acesso-automatico-prova/requirements.md)). Ele usa o plugin da comunidade **User key authentication** (`auth_userkey` **2022081902**), com um **token separado** do token da integração.
 
 > Por que não usar a função do próprio `auth_userkey`? Ela gera link de login para **qualquer** usuário, **inclusive o admin**. A função do `local_faicrm` só gera link para **candidato matriculado** na prova. Por isso o serviço do `auth_userkey` fica **desligado**, e o CRM usa só o nosso.
 
-Você vai precisar de: o **`local_faicrm-1.9.1.zip`**, o **`papel-ssocrm.xml`** ([`implantacao/papel-ssocrm.xml`](../implantacao/papel-ssocrm.xml), também anexado à release) e o zip do **`auth_userkey` 2022081902** ([Moodle Plugins directory](https://moodle.org/plugins/auth_userkey/2022081902/37365)), se ele ainda não estiver instalado.
+Você vai precisar de: o **`local_faicrm-1.10.0.zip`**, o **`papel-ssocrm.xml`** ([`implantacao/papel-ssocrm.xml`](../implantacao/papel-ssocrm.xml), também anexado à release) e o zip do **`auth_userkey` 2022081902** ([Moodle Plugins directory](https://moodle.org/plugins/auth_userkey/2022081902/37365)), se ele ainda não estiver instalado.
 
 ## S1. Instalar ou atualizar os plugins
 **Administração do site → Plugins → Instalar plugins**, como no passo 1:
-- **`local_faicrm-1.9.1.zip`**: atualiza a integração. Nada muda nas rotas que o CRM já usa.
+- **`local_faicrm-1.10.0.zip`**: atualiza a integração. Nada muda nas rotas que o CRM já usa.
 - **`auth_userkey` 2022081902**: só se ainda não estiver instalado. Confira em **Plugins → Visão geral dos plugins**, procurando "userkey".
 
 Logo depois do "Sucesso", o Moodle abre a tela **"Novas configurações"** com os campos dos dois plugins. O auth_userkey vem com "Mapping field" = e-mail e validade 60. Você pode preencher ali com os valores do S2 e do S2b, ou clicar em **Salvar mudanças** sem mudar nada e configurar nos passos S2 e S2b. O resultado é o mesmo.
@@ -201,10 +201,29 @@ O link gerado também fica registrado: em **Relatórios → Logs**, escolha o **
 
 Depois apague o candidato de teste.
 
+## S10. Retorno ao CRM depois da prova (opcional, a partir da 1.10.0)
+Quando o candidato que entrou pelo CRM termina a prova, o Moodle pode mostrar "Prova enviada com sucesso!" e, em 5 segundos, levá-lo de volta a uma página do CRM, já deslogado do Moodle.
+
+**Administração do site → Plugins → Plugins locais → FAI CRM: acesso automático à prova**:
+- **"URL de retorno após a prova"**: o endereço que o **time do CRM** informar (ex.: `https://crm.exemplo.com.br/vestibular/prova-enviada`).
+  - Precisa começar com `https://`.
+  - **Não coloque token, CPF nem senha** na URL: ela vai para todos os candidatos.
+  - Vazia = sem retorno, e o candidato fica no Moodle como antes.
+- **"Mensagem ao concluir"** (opcional): um texto curto que aparece na tela de confirmação, por exemplo "O resultado será divulgado no portal do candidato.".
+- **Salvar mudanças.** No diagnóstico do topo, o item do retorno mostra **OK** e o domínio configurado.
+
+O Moodle acrescenta à URL `?status=concluida&cmid=<id da prova>`. O retorno só vale para quem entrou pelo link do CRM, e só na prova desse link. Quem entra pelo login normal continua vendo a revisão da prova, como hoje.
+
+**Teste:** faça o S9 com o candidato de teste até o fim. Clique em **"Enviar tudo e terminar"** e confira:
+1. aparece a tela "Prova enviada com sucesso!";
+2. em 5 segundos, abre a página do CRM;
+3. ao voltar para o Moodle, o candidato está deslogado.
+
 ## Voltar atrás (só o SSO)
 - **Parar na hora:** Gerenciar tokens → excluir o token do SSO. A integração do CRM (`ws_crm`) continua funcionando.
 - **Desligar o login por link:** Gerenciar autenticação → desabilitar **User key authentication**. Os links passam a dar erro, e o login normal continua.
 - **Desligar só a geração de links:** na página do S2b, desmarque todos os cursos e todas as categorias.
+- **Desligar só o retorno ao CRM:** apague a "URL de retorno após a prova" (S10).
 
 ---
 

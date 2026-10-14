@@ -1,16 +1,19 @@
 # Contrato da API — Integração CRM ↔ Moodle (Vestibular FAI)
 
-API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova**, **liberar uma nova tentativa da prova** (recaptação) e **levar o candidato já logado à prova** (acesso automático).
+API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova**, **liberar uma nova tentativa da prova** (recaptação), **levar o candidato já logado à prova** (acesso automático) e **recebê-lo de volta quando ele termina a prova** (retorno).
 
 Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
-**Versão do contrato:** 1.9.2, de 15/10/2026 (plugin `local_faicrm` 1.9.2).
+**Versão do contrato:** 1.10.1, de 19/10/2026 (plugin `local_faicrm` 1.10.1).
 
 ---
 
 ## 0. O que mudou nesta versão — o que o CRM precisa fazer
 
-### Novo na 1.9.2: notas da redação e das objetivas nos resultados (4.5)
+### Novo na 1.10.1: retorno ao CRM depois da prova (seção 6)
+Quando o candidato que entrou pela 4.10 termina a prova, o Moodle mostra "Prova enviada com sucesso!" e, em 5 segundos, o leva de volta a uma **página do CRM**. Para isso, o CRM precisa **criar essa página e informar o endereço dela à FAI**. Veja o checklist da seção 6.
+
+### Da 1.9.2: notas da redação e das objetivas nos resultados (4.5)
 Cada candidato da operação **4.5** ganha dois campos:
 - **`nota_redacao`**: nota da redação (a questão 1 da prova), de **0 a 200**;
 - **`nota_objetivas`**: a soma das outras questões, de **0 a 800**.
@@ -566,3 +569,56 @@ Cuidados: o link equivale a uma senha por 2 minutos.
 - Não grave a `url` nem a resposta em log.
 - Não envie o link por e-mail ou WhatsApp.
 - Gere um link novo a cada clique, porque cada link novo invalida o anterior.
+
+---
+
+## 6. Retorno ao CRM depois da prova
+
+### Como funciona
+1. O candidato entra na prova pelo link da 4.10.
+2. Ele termina a prova: clica em **"Enviar tudo e terminar"**, ou o **tempo da prova acaba** com a prova aberta.
+3. O Moodle mostra uma tela de confirmação: **"Prova enviada com sucesso! Você será levado de volta em 5 segundos."**, a mensagem opcional configurada pela FAI e o botão **"Voltar agora"**. O candidato **não vê** nota nem respostas.
+4. O Moodle **encerra a sessão** do candidato e o leva para a **URL de retorno**, com dois parâmetros acrescentados:
+
+```
+GET {URL de retorno do CRM}?status=concluida&cmid=22
+```
+
+| Parâmetro | Valor | Significado |
+|---|---|---|
+| `status` | `concluida` | o candidato enviou a prova |
+| `cmid` | inteiro | id de acesso da prova que ele terminou, o mesmo usado na 4.10 |
+
+- Se a URL de retorno já tiver parâmetros, como `?origem=moodle`, eles são mantidos, e os dois acima são acrescentados.
+- **Nenhum dado pessoal** vem na URL: nem CPF, nem nome, nem nota.
+- **Quando não há retorno:**
+  - o candidato entrou no Moodle pelo login normal, e não pelo link da 4.10;
+  - terminou outra prova, diferente da do link;
+  - fechou o navegador antes de enviar, e a tentativa foi fechada depois pelo Moodle;
+  - a FAI ainda não configurou a URL de retorno.
+
+  Nesses casos ele fica no Moodle, como hoje.
+
+### Checklist de implementação no CRM
+1. **Criar a página de retorno**, por exemplo `https://<crm>/vestibular/prova-enviada`:
+   - **precisa ser `https://`**;
+   - precisa abrir **sem depender de sessão do Moodle**, porque o candidato chega **deslogado** do Moodle;
+   - se a sessão do candidato no CRM tiver expirado, a página deve funcionar mesmo assim, por exemplo mostrando "Prova enviada. Entre no portal para acompanhar o resultado.", ou levar ao login do CRM e depois de volta a ela.
+2. **Informar essa URL à FAI**, que a configura no Moodle. Sem isso, não há retorno.
+   - A URL **não pode levar segredo nem identificador** (`?token=`, `?apikey=`, `?cpf=`). Ela vai para todos os candidatos e fica no histórico do navegador e nos logs.
+   - Parâmetros fixos sem segredo podem ir, como `?origem=moodle`.
+3. **Não use os parâmetros como prova de nada.** Qualquer pessoa pode abrir `…?status=concluida&cmid=22` no navegador, e um pré-visualizador de links ou um robô também. Use-os só para **escolher a mensagem** da página, como "Sua prova foi enviada".
+   - **A página de retorno não muda nada no CRM:** não avança a etapa do candidato, não marca "fez a prova" e não envia e-mail.
+   - **Para registrar que o candidato fez a prova**, e com qual nota, consulte os **resultados (4.5)**: `dataprova`, `tentativas`, `nota` e `concluido` daquele candidato.
+   - **Para atualizar o status logo depois do retorno**, a página pode disparar, no **backend**, uma consulta à 4.5 com `dataprovade` = a data de hoje.
+     - Faça a consulta para o candidato **da sessão do CRM**, nunca para um candidato escolhido por parâmetro da URL.
+     - Limite a frequência.
+     - A nota pode levar alguns minutos para aparecer, e questões abertas podem depender de correção.
+   - **A falta do retorno também não prova nada.** O candidato pode ter fechado o navegador, a tentativa pode ter sido fechada pelo Moodle ou a rede pode ter caído. O CRM nunca depende do retorno para registrar a prova: a fonte da verdade é sempre a 4.5.
+   - **Valide os parâmetros:** `status` só pode ser `concluida`, e `cmid` só um inteiro de uma prova conhecida. Fora disso, mostre a mensagem genérica.
+   - **Nunca mostre os parâmetros crus no HTML**, por risco de XSS, e **nunca redirecione com base neles**.
+   - Não conte com o `Referer`: ele chega vazio.
+4. **Use o `cmid` para saber de qual prova (vestibular) ele voltou**, caso o CRM tenha mais de um vestibular ativo.
+5. **Teste de aceite** com o candidato piloto, depois que a FAI configurar a URL:
+   - "Realizar minha prova" → fazer a prova → "Enviar tudo e terminar" → tela "Prova enviada com sucesso!" → em 5 s, a página de retorno do CRM, com `status=concluida&cmid=22`;
+   - voltar ao Moodle pelo endereço direto → o candidato está deslogado.

@@ -68,26 +68,5 @@ if ($hassiteconfig) {
             [],
             $courses
         ));
-
-        // Return to the CRM after the quiz (spec 007).
-        $settings->add(new admin_setting_heading(
-            'local_faicrm/retornotitulo',
-            get_string('retorno_secao', 'local_faicrm'),
-            ''
-        ));
-        $settings->add(new \local_faicrm\sso\setting_retorno_url(
-            'local_faicrm/retorno_url',
-            get_string('retorno_url', 'local_faicrm'),
-            get_string('retorno_url_desc', 'local_faicrm'),
-            '',
-            PARAM_RAW_TRIMMED
-        ));
-        $settings->add(new admin_setting_configtextarea(
-            'local_faicrm/retorno_mensagem',
-            get_string('retorno_mensagem', 'local_faicrm'),
-            get_string('retorno_mensagem_desc', 'local_faicrm'),
-            '',
-            PARAM_TEXT
-        ));
     }
 }

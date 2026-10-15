@@ -163,54 +163,6 @@ final class diagnostico_test extends \advanced_testcase {
         $this->assertStringContainsString('1', $item['text']);
     }
 
-    public function test_retorno_desligado_e_ok_informativo(): void {
-        $item = $this->item('retorno');
-
-        $this->assertSame('OK', $item['status']);
-    }
-
-    public function test_retorno_ligado_e_ok_e_mostra_o_dominio(): void {
-        set_config('retorno_url', 'https://crm.example/retorno?x=1', 'local_faicrm');
-
-        $item = $this->item('retorno');
-
-        $this->assertSame('OK', $item['status']);
-        $this->assertStringContainsString('crm.example', $item['text']);
-        $this->assertStringNotContainsString('x=1', $item['text']);
-    }
-
-    public function test_retorno_com_url_invalida_e_falha(): void {
-        set_config('retorno_url', 'javascript:alert(1)', 'local_faicrm');
-
-        $this->assertSame('FALHA', $this->item('retorno')['status']);
-        $this->assertTrue(diagnostico::has_failures(diagnostico::run()));
-    }
-
-    public function test_retorno_em_http_num_moodle_https_e_falha(): void {
-        global $CFG;
-        $CFG->wwwroot = 'https://moodle.example';
-        set_config('retorno_url', 'http://crm.example/retorno', 'local_faicrm');
-
-        $this->assertSame('FALHA', $this->item('retorno')['status']);
-    }
-
-    public function test_retorno_com_usuario_e_senha_na_url_e_falha(): void {
-        set_config('retorno_url', 'https://u:p@crm.example/retorno', 'local_faicrm');
-
-        $this->assertSame('FALHA', $this->item('retorno')['status']);
-    }
-
-    public function test_retorno_sem_o_segredo_e_falha(): void {
-        unset_config('sso_secret', 'local_faicrm');
-
-        $this->assertSame('FALHA', $this->item('retorno_segredo')['status']);
-        $this->assertStringContainsString('Notific', $this->item('retorno_segredo')['text']);
-    }
-
-    public function test_retorno_com_o_segredo_e_ok(): void {
-        $this->assertSame('OK', $this->item('retorno_segredo')['status']);
-    }
-
     public function test_servico_do_sso_desabilitado_e_falha(): void {
         global $DB;
 

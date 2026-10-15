@@ -1,18 +1,36 @@
 # Contrato da API — Integração CRM ↔ Moodle (Vestibular FAI)
 
-API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova**, **liberar uma nova tentativa da prova** (recaptação), **levar o candidato já logado à prova** (acesso automático) e **recebê-lo de volta quando ele termina a prova** (retorno).
+API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular**, **consultar nota, conclusão e datas da prova**, **liberar uma nova tentativa da prova** (recaptação) e **levar o candidato já logado à prova** (acesso automático).
 
 Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
-**Versão do contrato:** 1.10.0, de 14/10/2026 (plugin `local_faicrm` 1.10.0).
+**Versão do contrato:** 1.9.2, de 15/10/2026 (plugin `local_faicrm` 1.9.2).
 
 ---
 
 ## 0. O que mudou nesta versão — o que o CRM precisa fazer
 
-**Novidades:**
-1. **Acesso automático à prova** (SSO, operação **4.10**). O candidato clica em **"Realizar minha prova"** no CRM e abre a prova no Moodle **já logado**, sem senha e sem segundo login. O checklist está logo abaixo.
-2. **Retorno ao CRM depois da prova** (seção **6**). Quando o candidato que entrou pela 4.10 termina a prova, o Moodle mostra "Prova enviada com sucesso!" e, em 5 segundos, o leva de volta a uma **página do CRM**. Para isso, o CRM precisa **criar essa página e informar o endereço dela à FAI**. Veja o checklist da seção 6.
+### Novo na 1.9.2: notas da redação e das objetivas nos resultados (4.5)
+Cada candidato da operação **4.5** ganha dois campos:
+- **`nota_redacao`**: nota da redação (a questão 1 da prova), de **0 a 200**;
+- **`nota_objetivas`**: a soma das outras questões, de **0 a 800**.
+
+Com a correção concluída, **`nota_redacao + nota_objetivas = nota`**. Quando a correção está **pendente**, os dois vêm **`null`**, nunca zero.
+
+Nada mais muda: as outras operações, os outros campos da 4.5, os tokens e o SSO continuam iguais. A regra completa e os exemplos estão na **4.5**.
+
+**O que o CRM precisa fazer:** se o CRM já lê `nota_redacao` e `nota_objetivas` da 4.5 com esses nomes, **não precisa mudar nada**. Mesmo assim, confira os pontos do **checklist da 4.5** ("Orientações para o CRM"):
+- **redação zerada zera a nota no CRM:** o Moodle não zera a `nota` total, e o CRM considera a nota final 0;
+- os valores podem ter decimais;
+- `null` é diferente de `0`;
+- com `null`, não se decide pela `nota`;
+- a 4.5 precisa ser consultada de novo até sair do pendente.
+
+Depois, valide a jornada com o candidato piloto.
+
+### Da 1.9.0: acesso automático à prova (SSO)
+
+**Novidade:** a **operação 4.10**, de acesso automático à prova (SSO). O candidato clica em **"Realizar minha prova"** no CRM e abre a prova no Moodle **já logado**, sem senha e sem segundo login.
 
 **As operações 4.1 a 4.9 não mudaram:** mesmos endereços, parâmetros, respostas e erros, com o mesmo `MOODLE_API_TOKEN`. Nada do que já funciona precisa ser alterado.
 
@@ -30,35 +48,18 @@ No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera li
 | Resposta | `{"loginurl": "..."}` | **`{"url": "...", "expiraem": "..."}`** |
 | Destino | o CRM acrescentava `&wantsurl=...` | **já vem no link**: não acrescente nada |
 
-### Pré-requisitos do lado da FAI (não são tarefa do CRM)
-Antes de o SSO funcionar, a FAI configura no Moodle:
-- o plugin `local_faicrm` 1.9.1 e o `auth_userkey`;
-- o **curso de cada vestibular liberado para o acesso automático** (em "Cursos liberados" ou "Categorias liberadas");
-- a conta técnica `ws_sso` e o token, que a FAI entrega ao CRM.
-
-Sem o curso liberado, a 4.10 responde `403` "Esta prova não está liberada para o acesso automático.". Sem a configuração, responde `503` "O acesso automático à prova não está habilitado no Moodle.". Nos dois casos o problema é de configuração no Moodle, **não do CRM**: avise a equipe da FAI.
-
-**A cada vestibular novo:** a FAI libera o curso novo no Moodle e informa o `cmid` da prova nova. O CRM só passa a usar esse `cmid`.
-
 ### Checklist de implementação no CRM
 1. **Segredo novo `MOODLE_SSO_TOKEN`**, enviado à parte por um canal seguro. Guarde-o só no backend.
    - Ele é **diferente** do `MOODLE_API_TOKEN`, que continua igual.
    - Cada token só funciona nas suas operações: o do SSO só chama a 4.10, e o da API não chama a 4.10. Usar o token errado dá `403`.
-   - O token vale **1 ano**. Quando vencer, a 4.10 responde `401`, e a FAI envia um token novo.
 2. **Configuração do `cmid` da prova**, o id de acesso. No Vestibular 2027.1 é **`22`**.
    - O `cmid` também vem na operação 4.7, campo `cmid`.
    - Não confunda com o `quizid` (`id`, usado na 4.8 e na 4.9).
-   - Guarde os ids **por vestibular** (`courseid`, `quizid` e `cmid`), porque cada vestibular tem os seus. Em um vestibular novo, o CRM só configura o `cmid` da prova nova, depois que a FAI liberar o curso (veja os pré-requisitos).
+   - Em um vestibular novo, basta configurar o `cmid` da prova nova. Antes, a FAI libera o curso novo no Moodle.
 3. **No clique de "Realizar minha prova"**, o **backend** do CRM:
    1. chama a 4.10 com o CPF do candidato logado no CRM (o mesmo `username` do cadastro, só dígitos) e o `cmid`;
    2. com `200`, responde ao navegador com **redirecionamento `302` para `url`**, enviando `Cache-Control: no-store` e `Referrer-Policy: no-referrer`;
    3. com erro, mostra a mensagem ao candidato (tabela da 4.10) e **não redireciona**.
-
-   - **O candidato precisa estar cadastrado e matriculado antes** (fluxo de inscrição, 4.1 a 4.3). Senão, a 4.10 responde `404` ou `409`.
-   - **Se o front-end for uma SPA** e não puder receber o `302`, o backend devolve a `url` ao front-end. O front-end navega **na hora** com `window.location.replace(url)`, sem guardá-la em estado, `localStorage` nem log. Não use `fetch` ou XHR para abrir a `url`, porque a sessão do Moodle precisa ser criada no navegador.
-   - **Pode abrir na mesma aba ou numa aba nova.** Os dois funcionam.
-   - **Timeout de 10 s** na chamada à 4.10. Em `500` ou `503`, tente **uma vez** de novo depois de alguns segundos. Em `4xx`, não repita: mostre a mensagem.
-   - **O botão pode ficar sempre visível.** Se o candidato já tiver usado todas as tentativas ou a prova estiver fechada, a página da prova no Moodle informa isso. Para esconder ou trocar o texto do botão, use o `podefazerprova` dos resultados (4.5).
 4. **Gere um link novo a cada clique.** Não reaproveite nem guarde links:
    - o link vale **2 minutos**;
    - funciona **uma vez só**;
@@ -265,7 +266,8 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
     "datamatricula": "2026-10-01T09:15:00-03:00",
     "dataprova": "2026-10-07T14:32:10-03:00",
     "dataconclusao": "2026-10-07T14:32:10-03:00",
-    "tentativas": 1, "podefazerprova": false
+    "tentativas": 1, "podefazerprova": false,
+    "nota_redacao": 160, "nota_objetivas": 600
   }]
 }
 ```
@@ -275,6 +277,8 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 | `total` | inteiro | candidatos encontrados (com os filtros aplicados) |
 | `totalpaginas` | inteiro | `0` quando não há candidatos |
 | `nota` | número ou `null` | nota da prova, de 0 a 1000; `null` se ainda não fez |
+| `nota_redacao` | número ou `null` | nota da **redação**, de 0 a 200 (1.9.2). Veja as regras abaixo |
+| `nota_objetivas` | número ou `null` | soma das **objetivas**, de 0 a 800 (1.9.2). Veja as regras abaixo |
 | `concluido` | booleano | `true` quando o Moodle marcou o curso como concluído (pode levar alguns minutos depois da prova) |
 | `datamatricula` | data ou `null` | quando foi matriculado |
 | `dataprova` | data ou `null` | quando finalizou a prova (última tentativa finalizada) |
@@ -284,6 +288,91 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 
 - Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`. Uma página além da última traz `candidatos: []`.
 - Erros: `400` para `pagina` menor que 1, data em formato inválido, `dataprovade` depois de `dataprovaate`, ou envio de `porpagina`. `404` "Curso não encontrado."
+
+#### `nota_redacao` e `nota_objetivas` (1.9.2)
+**De onde vêm:**
+- **Redação** = a nota da **questão da posição 1 da prova**, na ordem em que aparece para o candidato. Não é o id 1 do banco de questões. Um texto de instruções sem nota antes dela não conta como questão.
+- **Objetivas** = a soma de **todas as outras questões**.
+- Na mesma escala da `nota`: na prova da FAI, redação de 0 a 200 e objetivas de 0 a 800. Duas casas decimais.
+- **Mesma tentativa do resultado final:** os dois campos vêm da mesma tentativa que gerou a `nota`, conforme o `metodonota` da prova (4.7). Com `maior`, é a tentativa de maior nota. Com `media`, é a média de cada parte entre as tentativas. Por isso, com a correção concluída, **`nota_redacao + nota_objetivas = nota`**.
+
+**Quando vêm `null` (nunca zero nesses casos):**
+- **correção pendente:** alguma tentativa finalizada da prova ainda tem questão esperando correção manual, como a redação ainda não corrigida pela banca. Nesse caso a `nota` também costuma vir `null`;
+- o candidato **ainda não finalizou** a prova;
+- o curso tem **mais de uma prova** com tentativa finalizada do candidato, e não dá para saber qual é a do resultado. Isso não acontece no Vestibular, que tem uma prova por curso.
+
+**Zero é zero:** uma redação corrigida com 0, ou deixada **em branco** e encerrada, vem `0`. Objetivas todas erradas vêm `0`.
+
+**Como o CRM usa** (regra definida pela FAI, aplicada pelo CRM):
+
+| `nota_redacao` | `nota_objetivas` | Situação | O CRM faz |
+|---|---|---|---|
+| `> 0` | `> 0` | aprovado | aprovação automática, mensagem de parabéns e pré-matrícula |
+| `= 0` | qualquer valor | correção concluída, redação zerada | **considerar a nota final 0** (a `nota` do Moodle não é zerada) e oferecer nova chance |
+| qualquer valor | `= 0` | correção concluída, objetivas zeradas | oferecer nova chance |
+| `null` | `null` | correção pendente ou prova não feita | "a avaliação está sendo preparada", sem aprovar nem reprovar |
+
+- Não há nota mínima total nesse processo. A mínima de 400 é só do ENEM.
+- Os dois campos vêm `null` **juntos**, ou com valor **juntos**. Na dúvida, trate `null` em qualquer um como pendente.
+- Para saber se o candidato fez a prova, use `dataprova` e `tentativas`. Use `podefazerprova` para saber se ele ainda pode fazer.
+
+#### Orientações para o CRM (checklist)
+Se o CRM foi implementado com os nomes e a regra acima, ele já funciona. Confira só estes pontos:
+
+1. **Regra de negócio: redação zerada zera a nota no CRM.** No Moodle, uma redação corrigida com **0** (ou em branco) **não zera a nota total**. A `nota` continua sendo a soma das objetivas. Exemplo: `"nota": 520, "nota_redacao": 0, "nota_objetivas": 520`.
+   - Pela regra do vestibular, quem zera a redação não tem o resultado aproveitado. **Quem aplica isso é o CRM:** com `nota_redacao = 0` e a correção concluída, o CRM considera a **nota final do candidato como 0** e oferece a nova chance.
+   - O CRM **não deve exibir nem gravar a `nota` do Moodle** (520 no exemplo) como resultado desse candidato.
+   - O Moodle continua devolvendo a `nota` real da prova e as duas partes separadas. A decisão de zerar é do CRM.
+2. **Decida pelos dois campos novos, não pela `nota`.**
+   - Aprovação: `nota_redacao > 0` **e** `nota_objetivas > 0`.
+   - Nova chance: um dos dois igual a `0`.
+   - Pendente: algum dos dois `null`.
+
+   A `nota` sozinha não diz se o candidato cumpriu os dois requisitos.
+3. **`null` não é `0`.** Nunca converta `null` em zero, nem por padrão de campo, banco ou serialização. Fazer isso daria "nova chance" a quem ainda nem foi corrigido. Só `0` de verdade (corrigido com zero ou em branco) leva à nova chance.
+4. **Com `null`, não olhe a `nota`.** No caso raro de recaptação, com a 1ª tentativa corrigida e a 2ª esperando correção, a `nota` pode ter valor enquanto os dois campos estão `null`. Mesmo assim, o certo é "avaliação sendo preparada".
+5. **Decimais:** os valores são números com até **2 casas** (`150`, `150.5`, `333.33`). Não arredonde para comparar com zero: `0.5` é maior que zero. Se o CRM exibir as notas, formate com até 2 casas.
+6. **Consulte de novo até sair do pendente.** A redação é corrigida pela banca depois do envio, então o mesmo candidato passa de `null` para os valores finais. Continue consultando a 4.5 (sob demanda ou em intervalos, como em "Acompanhamento dos resultados", seção 5) até os dois campos terem valor. Use `dataprovade`/`dataprovaate` para limitar a consulta às provas recentes.
+7. **O resultado pode mudar depois:**
+   - se a banca **revisar** a nota de uma redação já corrigida, os valores mudam na próxima consulta;
+   - numa **nova tentativa** (4.8), os campos passam a refletir a tentativa que vale para o resultado final, conforme o `metodonota` da prova.
+
+   Não trate a primeira resposta com valor como definitiva se o processo permitir revisão.
+8. **A soma confere com a `nota`:** `nota_redacao + nota_objetivas = nota`, com até 2 casas. O CRM pode usar isso como conferência. Se não bater, avise a FAI: isso só acontece se alguém alterar a nota do curso à mão no livro de notas, ou se o curso do vestibular tiver outra atividade valendo nota além da prova.
+9. **A escala depende da prova:** 0–200 e 0–800 valem porque a prova da FAI tem nota máxima 1000 e a redação vale 20%. Se a FAI mudar a prova, a escala acompanha. A regra do CRM (`> 0` e `= 0`) continua valendo do mesmo jeito.
+10. **Os campos sempre vêm na resposta**, com número ou `null`, em todo candidato e em toda página. Não é preciso tratar campo ausente.
+11. **Teste com o piloto:** depois da atualização na produção, consulte a 4.5 do candidato piloto e confira:
+    - os dois campos têm valor, a soma dá a `nota` e o CRM mostra a mensagem certa (parabéns e pré-matrícula, ou nova chance);
+    - num candidato com a redação ainda não corrigida, o CRM mantém "a avaliação está sendo preparada".
+
+**Exemplo** (dados fictícios), um candidato em cada situação:
+```json
+{
+  "total": 5, "pagina": 1, "porpagina": 100, "totalpaginas": 1,
+  "candidatos": [
+    { "username": "00000000001", "firstname": "Candidato", "lastname": "Aprovado", "email": "aprovado@example.com", "courseid": 10,
+      "nota": 740, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:30:00-03:00",
+      "dataconclusao": "2026-10-15T09:31:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 140, "nota_objetivas": 600 },
+    { "username": "00000000002", "firstname": "Candidato", "lastname": "Redacao Zerada", "email": "redacao@example.com", "courseid": 10,
+      "nota": 520, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:40:00-03:00",
+      "dataconclusao": "2026-10-15T09:41:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 0, "nota_objetivas": 520 },
+    { "username": "00000000003", "firstname": "Candidato", "lastname": "Objetivas Zeradas", "email": "objetivas@example.com", "courseid": 10,
+      "nota": 150, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:50:00-03:00",
+      "dataconclusao": "2026-10-15T09:51:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 150, "nota_objetivas": 0 },
+    { "username": "00000000004", "firstname": "Candidato", "lastname": "Correcao Pendente", "email": "pendente@example.com", "courseid": 10,
+      "nota": null, "concluido": false, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T10:00:00-03:00",
+      "dataconclusao": null, "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": null, "nota_objetivas": null },
+    { "username": "00000000005", "firstname": "Candidato", "lastname": "Sem Prova", "email": "semprova@example.com", "courseid": 10,
+      "nota": null, "concluido": false, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": null,
+      "dataconclusao": null, "tentativas": 0, "podefazerprova": true,
+      "nota_redacao": null, "nota_objetivas": null }
+  ]
+}
+```
 
 ### 4.6 Listar cursos — `local_faicrm_listar_cursos`
 
@@ -453,63 +542,10 @@ Um `409` "ainda pode fazer a prova" ou "tentativa em andamento" significa que n�
 ### Acesso automático à prova ("Realizar minha prova")
 1. O candidato clica em "Realizar minha prova" no CRM.
 2. O **backend** do CRM chama a 4.10 com o CPF dele e o `cmid` da prova, usando o `MOODLE_SSO_TOKEN`.
-3. O CRM responde ao navegador com um **redirecionamento** (`302`) para `url`, com `Cache-Control: no-store` e `Referrer-Policy: no-referrer`. Numa SPA, o front-end navega na hora com `window.location.replace(url)`.
+3. O CRM responde ao navegador com um **redirecionamento** (`302`) para `url`, com `Cache-Control: no-store` e `Referrer-Policy: no-referrer`.
 4. O Moodle loga o candidato e abre a prova.
 
 Cuidados: o link equivale a uma senha por 2 minutos.
 - Não grave a `url` nem a resposta em log.
 - Não envie o link por e-mail ou WhatsApp.
 - Gere um link novo a cada clique, porque cada link novo invalida o anterior.
-
----
-
-## 6. Retorno ao CRM depois da prova
-
-### Como funciona
-1. O candidato entra na prova pelo link da 4.10.
-2. Ele termina a prova: clica em **"Enviar tudo e terminar"**, ou o **tempo da prova acaba** com a prova aberta.
-3. O Moodle mostra uma tela de confirmação: **"Prova enviada com sucesso! Você será levado de volta em 5 segundos."**, a mensagem opcional configurada pela FAI e o botão **"Voltar agora"**. O candidato **não vê** nota nem respostas.
-4. O Moodle **encerra a sessão** do candidato e o leva para a **URL de retorno**, com dois parâmetros acrescentados:
-
-```
-GET {URL de retorno do CRM}?status=concluida&cmid=22
-```
-
-| Parâmetro | Valor | Significado |
-|---|---|---|
-| `status` | `concluida` | o candidato enviou a prova |
-| `cmid` | inteiro | id de acesso da prova que ele terminou, o mesmo usado na 4.10 |
-
-- Se a URL de retorno já tiver parâmetros, como `?origem=moodle`, eles são mantidos, e os dois acima são acrescentados.
-- **Nenhum dado pessoal** vem na URL: nem CPF, nem nome, nem nota.
-- **Quando não há retorno:**
-  - o candidato entrou no Moodle pelo login normal, e não pelo link da 4.10;
-  - terminou outra prova, diferente da do link;
-  - fechou o navegador antes de enviar, e a tentativa foi fechada depois pelo Moodle;
-  - a FAI ainda não configurou a URL de retorno.
-
-  Nesses casos ele fica no Moodle, como hoje.
-
-### Checklist de implementação no CRM
-1. **Criar a página de retorno**, por exemplo `https://<crm>/vestibular/prova-enviada`:
-   - **precisa ser `https://`**;
-   - precisa abrir **sem depender de sessão do Moodle**, porque o candidato chega **deslogado** do Moodle;
-   - se a sessão do candidato no CRM tiver expirado, a página deve funcionar mesmo assim, por exemplo mostrando "Prova enviada. Entre no portal para acompanhar o resultado.", ou levar ao login do CRM e depois de volta a ela.
-2. **Informar essa URL à FAI**, que a configura no Moodle. Sem isso, não há retorno.
-   - A URL **não pode levar segredo nem identificador** (`?token=`, `?apikey=`, `?cpf=`). Ela vai para todos os candidatos e fica no histórico do navegador e nos logs.
-   - Parâmetros fixos sem segredo podem ir, como `?origem=moodle`.
-3. **Não use os parâmetros como prova de nada.** Qualquer pessoa pode abrir `…?status=concluida&cmid=22` no navegador, e um pré-visualizador de links ou um robô também. Use-os só para **escolher a mensagem** da página, como "Sua prova foi enviada".
-   - **A página de retorno não muda nada no CRM:** não avança a etapa do candidato, não marca "fez a prova" e não envia e-mail.
-   - **Para registrar que o candidato fez a prova**, e com qual nota, consulte os **resultados (4.5)**: `dataprova`, `tentativas`, `nota` e `concluido` daquele candidato.
-   - **Para atualizar o status logo depois do retorno**, a página pode disparar, no **backend**, uma consulta à 4.5 com `dataprovade` = a data de hoje.
-     - Faça a consulta para o candidato **da sessão do CRM**, nunca para um candidato escolhido por parâmetro da URL.
-     - Limite a frequência.
-     - A nota pode levar alguns minutos para aparecer, e questões abertas podem depender de correção.
-   - **A falta do retorno também não prova nada.** O candidato pode ter fechado o navegador, a tentativa pode ter sido fechada pelo Moodle ou a rede pode ter caído. O CRM nunca depende do retorno para registrar a prova: a fonte da verdade é sempre a 4.5.
-   - **Valide os parâmetros:** `status` só pode ser `concluida`, e `cmid` só um inteiro de uma prova conhecida. Fora disso, mostre a mensagem genérica.
-   - **Nunca mostre os parâmetros crus no HTML**, por risco de XSS, e **nunca redirecione com base neles**.
-   - Não conte com o `Referer`: ele chega vazio.
-4. **Use o `cmid` para saber de qual prova (vestibular) ele voltou**, caso o CRM tenha mais de um vestibular ativo.
-5. **Teste de aceite** com o candidato piloto, depois que a FAI configurar a URL:
-   - "Realizar minha prova" → fazer a prova → "Enviar tudo e terminar" → tela "Prova enviada com sucesso!" → em 5 s, a página de retorno do CRM, com `status=concluida&cmid=22`;
-   - voltar ao Moodle pelo endereço direto → o candidato está deslogado.

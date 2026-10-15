@@ -87,24 +87,14 @@ class link {
     /**
      * URL of the login page of auth_userkey, taking the candidate to the quiz after the login.
      *
-     * The destination is always built here (our own start page, which marks the quiz for the return to the CRM and
-     * goes on to the quiz), never taken from outside.
-     *
-     * The start page carries the expiry of the key and a signature (HMAC of user|quiz|expiry) that ties the return to the
-     * CRM to this link; see {@see retorno::sign()}.
+     * The destination is always built here (an internal quiz URL), never taken from outside.
      *
      * @param string $key The key.
      * @param int $cmid Course module id of the quiz.
-     * @param int $userid User the key belongs to.
-     * @param int $exp Timestamp when the key expires.
      * @return string
      */
-    public static function login_url(string $key, int $cmid, int $userid, int $exp): string {
-        $wantsurl = new moodle_url('/local/faicrm/iniciar.php', [
-            'cmid' => $cmid,
-            'exp' => $exp,
-            'sig' => retorno::sign($userid, $cmid, $exp),
-        ]);
+    public static function login_url(string $key, int $cmid): string {
+        $wantsurl = new moodle_url('/mod/quiz/view.php', ['id' => $cmid]);
         return (new moodle_url('/auth/userkey/login.php', ['key' => $key, 'wantsurl' => $wantsurl->out(false)]))->out(false);
     }
 
@@ -119,7 +109,7 @@ class link {
      * @param string $key The key from the link.
      * @param int $cmid The course module id from the link.
      * @param int $currentuserid The logged-in user (0 when nobody is logged in).
-     * @return array ['valid' => bool, 'logout' => bool], plus 'userid' and 'exp' (the owner and the expiry of the key) when valid.
+     * @return array ['valid' => bool, 'logout' => bool]
      */
     public static function entry_check(string $key, int $cmid, int $currentuserid): array {
         global $DB;
@@ -135,11 +125,6 @@ class link {
         if (!$valid) {
             return ['valid' => false, 'logout' => false];
         }
-        return [
-            'valid' => true,
-            'logout' => $currentuserid > 0 && (int) $record->userid !== $currentuserid,
-            'userid' => (int) $record->userid,
-            'exp' => (int) $record->validuntil,
-        ];
+        return ['valid' => true, 'logout' => $currentuserid > 0 && (int) $record->userid !== $currentuserid];
     }
 }

@@ -39,19 +39,6 @@ final class link_test extends \advanced_testcase {
         return create_user_key('auth/userkey', $userid, $cmid, null, $validuntil);
     }
 
-    /**
-     * Resultado do entry_check só com valid e logout.
-     *
-     * @param string $key chave
-     * @param int $cmid prova
-     * @param int $current usuário logado
-     * @return array
-     */
-    private function check(string $key, int $cmid, int $current): array {
-        $result = link::entry_check($key, $cmid, $current);
-        return array_intersect_key($result, ['valid' => 1, 'logout' => 1]);
-    }
-
     public function test_entry_url_aponta_para_a_pagina_de_entrada(): void {
         global $CFG;
 
@@ -63,31 +50,14 @@ final class link_test extends \advanced_testcase {
         $this->assertNull($url->get_param('wantsurl'));
     }
 
-    public function test_login_url_leva_ao_login_do_plugin_passando_pela_pagina_de_inicio_assinada(): void {
+    public function test_login_url_leva_ao_login_do_plugin_com_a_prova_como_destino(): void {
         global $CFG;
-        $this->resetAfterTest();
 
-        $url = new moodle_url(link::login_url('abc123', 22, 7, 1900000000));
+        $url = new moodle_url(link::login_url('abc123', 22));
 
         $this->assertSame($CFG->wwwroot . '/auth/userkey/login.php', $url->out_omit_querystring());
         $this->assertSame('abc123', $url->get_param('key'));
-        $inicio = new moodle_url($url->get_param('wantsurl'));
-        $this->assertSame($CFG->wwwroot . '/local/faicrm/iniciar.php', $inicio->out_omit_querystring());
-        $this->assertSame('22', $inicio->get_param('cmid'));
-        $this->assertSame('1900000000', $inicio->get_param('exp'));
-        $this->assertSame(retorno::sign(7, 22, 1900000000), $inicio->get_param('sig'));
-    }
-
-    public function test_entry_check_devolve_o_dono_e_a_validade_da_chave_valida(): void {
-        $this->resetAfterTest();
-        $dono = $this->getDataGenerator()->create_user();
-        $validuntil = time() + 60;
-        $key = $this->key_for((int) $dono->id, $validuntil);
-
-        $result = link::entry_check($key, 22, 0);
-
-        $this->assertSame((int) $dono->id, $result['userid']);
-        $this->assertSame($validuntil, $result['exp']);
+        $this->assertSame($CFG->wwwroot . '/mod/quiz/view.php?id=22', $url->get_param('wantsurl'));
     }
 
     public function test_generate_amarra_a_chave_a_prova(): void {
@@ -99,8 +69,8 @@ final class link_test extends \advanced_testcase {
 
         $key = (new moodle_url($url))->get_param('key');
         $this->assertSame('22', (string) $DB->get_field('user_private_key', 'instance', ['value' => $key]));
-        $this->assertSame(['valid' => true, 'logout' => false], $this->check($key, 22, 0));
-        $this->assertSame(['valid' => false, 'logout' => false], $this->check($key, 23, (int) $dono->id + 1));
+        $this->assertSame(['valid' => true, 'logout' => false], link::entry_check($key, 22, 0));
+        $this->assertSame(['valid' => false, 'logout' => false], link::entry_check($key, 23, (int) $dono->id + 1));
     }
 
     public function test_chave_valida_de_outro_usuario_desloga(): void {
@@ -109,7 +79,7 @@ final class link_test extends \advanced_testcase {
         $outro = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, time() + 60);
 
-        $this->assertSame(['valid' => true, 'logout' => true], $this->check($key, 22, (int) $outro->id));
+        $this->assertSame(['valid' => true, 'logout' => true], link::entry_check($key, 22, (int) $outro->id));
     }
 
     public function test_chave_sem_validade_definida_e_valida(): void {
@@ -118,7 +88,7 @@ final class link_test extends \advanced_testcase {
         $outro = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, null);
 
-        $this->assertSame(['valid' => true, 'logout' => true], $this->check($key, 22, (int) $outro->id));
+        $this->assertSame(['valid' => true, 'logout' => true], link::entry_check($key, 22, (int) $outro->id));
     }
 
     public function test_chave_do_mesmo_usuario_e_valida_sem_logout(): void {
@@ -126,7 +96,7 @@ final class link_test extends \advanced_testcase {
         $dono = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, time() + 60);
 
-        $this->assertSame(['valid' => true, 'logout' => false], $this->check($key, 22, (int) $dono->id));
+        $this->assertSame(['valid' => true, 'logout' => false], link::entry_check($key, 22, (int) $dono->id));
     }
 
     public function test_ninguem_logado_nao_ha_logout(): void {
@@ -134,7 +104,7 @@ final class link_test extends \advanced_testcase {
         $dono = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, time() + 60);
 
-        $this->assertSame(['valid' => true, 'logout' => false], $this->check($key, 22, 0));
+        $this->assertSame(['valid' => true, 'logout' => false], link::entry_check($key, 22, 0));
     }
 
     public function test_chave_inexistente_e_invalida_e_nao_desloga(): void {
@@ -143,7 +113,7 @@ final class link_test extends \advanced_testcase {
 
         $this->assertSame(
             ['valid' => false, 'logout' => false],
-            $this->check('chavequenaoexiste', 22, (int) $outro->id)
+            link::entry_check('chavequenaoexiste', 22, (int) $outro->id)
         );
     }
 
@@ -153,7 +123,7 @@ final class link_test extends \advanced_testcase {
         $outro = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, time() - 5);
 
-        $this->assertSame(['valid' => false, 'logout' => false], $this->check($key, 22, (int) $outro->id));
+        $this->assertSame(['valid' => false, 'logout' => false], link::entry_check($key, 22, (int) $outro->id));
     }
 
     public function test_chave_de_outra_prova_e_invalida_e_nao_desloga(): void {
@@ -162,7 +132,7 @@ final class link_test extends \advanced_testcase {
         $outro = $this->getDataGenerator()->create_user();
         $key = $this->key_for((int) $dono->id, time() + 60, 22);
 
-        $this->assertSame(['valid' => false, 'logout' => false], $this->check($key, 23, (int) $outro->id));
+        $this->assertSame(['valid' => false, 'logout' => false], link::entry_check($key, 23, (int) $outro->id));
     }
 
     public function test_so_considera_chaves_do_auth_userkey(): void {
@@ -172,6 +142,6 @@ final class link_test extends \advanced_testcase {
         // Uma chave de outro script (por exemplo, a do feed de calendário) não vale e não pode deslogar ninguém.
         $key = create_user_key('core_calendar', (int) $dono->id, 22, null, time() + 60);
 
-        $this->assertSame(['valid' => false, 'logout' => false], $this->check($key, 22, (int) $outro->id));
+        $this->assertSame(['valid' => false, 'logout' => false], link::entry_check($key, 22, (int) $outro->id));
     }
 }

@@ -52,4 +52,4 @@ if ($check['logout']) {
 // The link is a credential for up to 120 seconds: do not leak it through the Referer or the cache.
 header('Referrer-Policy: no-referrer');
 header('Cache-Control: no-store');
-redirect(new moodle_url(link::login_url($key, $cmid, $check['userid'], $check['exp'])));
+redirect(new moodle_url(link::login_url($key, $cmid)));

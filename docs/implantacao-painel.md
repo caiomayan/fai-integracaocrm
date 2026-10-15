@@ -1,9 +1,17 @@
 # Implantação só pelo painel do Moodle
 
+> **Já tem a integração e o SSO funcionando (1.9.0 ou 1.9.1)? Para ir à 1.9.2, só atualize o plugin.**
+> 1. **Administração do site → Plugins → Instalar plugins** → envie o **`local_faicrm-1.9.2.zip`** → **Instalar plugin do arquivo ZIP** → **Continuar** → **Atualizar base de dados do Moodle agora** → **Continuar**.
+> 2. Pronto. **Não refaça nenhum passo** deste roteiro: os papéis, os usuários `ws_crm` e `ws_sso`, os tokens, os serviços, o auth_userkey e as configurações do SSO continuam como estão. A 1.9.2 não tem configuração nova.
+> 3. **Vindo da 1.9.0**, a atualização também traz "Cursos liberados" (S2b), da 1.9.1. A liberação por categoria que você já tem continua valendo.
+> 4. Para conferir: em **Plugins → Visão geral dos plugins**, "FAI CRM integration" deve mostrar **1.9.2 (2026101302)**. Na página do SSO, o diagnóstico continua todo OK. A operação 4.5 passa a trazer `nota_redacao` e `nota_objetivas`.
+>
+> Os passos abaixo são para uma instalação **nova** (1 a 11) ou para ligar o SSO **pela primeira vez** (S1 a S9).
+
 Para quem tem acesso **só ao painel de administração** do Moodle, sem acesso ao servidor (terminal). Este roteiro foi executado do começo ao fim num Moodle 4.5.14+ limpo, **só pelo navegador**, em 09/10/2026, e a API funcionou com o token gerado no painel.
 
 Leva cerca de 20 minutos. Você vai precisar de:
-- **`local_faicrm-1.9.1.zip`**: [release v1.9.1](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.9.1);
+- **`local_faicrm-1.9.2.zip`**: [release v1.9.2](https://github.com/caiomayan/fai-integracaocrm/releases/tag/v1.9.2);
 - **`papel-integracaocrm.xml`**: o papel pronto, com as 20 permissões ([`implantacao/papel-integracaocrm.xml`](../implantacao/papel-integracaocrm.xml), também anexado à release);
 - o **IP do servidor do CRM** (recomendado), para restringir o token.
 
@@ -91,11 +99,11 @@ Com o SSO, o candidato clica em **"Realizar minha prova"** no CRM e cai na prova
 
 > Por que não usar a função do próprio `auth_userkey`? Ela gera link de login para **qualquer** usuário, **inclusive o admin**. A função do `local_faicrm` só gera link para **candidato matriculado** na prova. Por isso o serviço do `auth_userkey` fica **desligado**, e o CRM usa só o nosso.
 
-Você vai precisar de: o **`local_faicrm-1.9.1.zip`**, o **`papel-ssocrm.xml`** ([`implantacao/papel-ssocrm.xml`](../implantacao/papel-ssocrm.xml), também anexado à release) e o zip do **`auth_userkey` 2022081902** ([Moodle Plugins directory](https://moodle.org/plugins/auth_userkey/2022081902/37365)), se ele ainda não estiver instalado.
+Você vai precisar de: o **`local_faicrm-1.9.2.zip`**, o **`papel-ssocrm.xml`** ([`implantacao/papel-ssocrm.xml`](../implantacao/papel-ssocrm.xml), também anexado à release) e o zip do **`auth_userkey` 2022081902** ([Moodle Plugins directory](https://moodle.org/plugins/auth_userkey/2022081902/37365)), se ele ainda não estiver instalado.
 
 ## S1. Instalar ou atualizar os plugins
 **Administração do site → Plugins → Instalar plugins**, como no passo 1:
-- **`local_faicrm-1.9.1.zip`**: atualiza a integração. Nada muda nas rotas que o CRM já usa.
+- **`local_faicrm-1.9.2.zip`**: atualiza a integração. Nada muda nas rotas que o CRM já usa.
 - **`auth_userkey` 2022081902**: só se ainda não estiver instalado. Confira em **Plugins → Visão geral dos plugins**, procurando "userkey".
 
 Logo depois do "Sucesso", o Moodle abre a tela **"Novas configurações"** com os campos dos dois plugins. O auth_userkey vem com "Mapping field" = e-mail e validade 60. Você pode preencher ali com os valores do S2 e do S2b, ou clicar em **Salvar mudanças** sem mudar nada e configurar nos passos S2 e S2b. O resultado é o mesmo.

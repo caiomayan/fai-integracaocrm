@@ -20,6 +20,7 @@ Com a correção concluída, **`nota_redacao + nota_objetivas = nota`**. Quando 
 Nada mais muda: as outras operações, os outros campos da 4.5, os tokens e o SSO continuam iguais. A regra completa e os exemplos estão na **4.5**.
 
 **O que o CRM precisa fazer:** se o CRM já lê `nota_redacao` e `nota_objetivas` da 4.5 com esses nomes, **não precisa mudar nada**. Mesmo assim, confira os pontos do **checklist da 4.5** ("Orientações para o CRM"):
+- **redação zerada zera a nota no CRM:** o Moodle não zera a `nota` total, e o CRM considera a nota final 0;
 - os valores podem ter decimais;
 - `null` é diferente de `0`;
 - com `null`, não se decide pela `nota`;
@@ -307,7 +308,7 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 | `nota_redacao` | `nota_objetivas` | Situação | O CRM faz |
 |---|---|---|---|
 | `> 0` | `> 0` | aprovado | aprovação automática, mensagem de parabéns e pré-matrícula |
-| `= 0` | qualquer valor | correção concluída, redação zerada | oferecer nova chance |
+| `= 0` | qualquer valor | correção concluída, redação zerada | **considerar a nota final 0** (a `nota` do Moodle não é zerada) e oferecer nova chance |
 | qualquer valor | `= 0` | correção concluída, objetivas zeradas | oferecer nova chance |
 | `null` | `null` | correção pendente ou prova não feita | "a avaliação está sendo preparada", sem aprovar nem reprovar |
 
@@ -318,25 +319,29 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 #### Orientações para o CRM (checklist)
 Se o CRM foi implementado com os nomes e a regra acima, ele já funciona. Confira só estes pontos:
 
-1. **Decida pelos dois campos novos, não pela `nota`.**
+1. **Regra de negócio: redação zerada zera a nota no CRM.** No Moodle, uma redação corrigida com **0** (ou em branco) **não zera a nota total**. A `nota` continua sendo a soma das objetivas. Exemplo: `"nota": 520, "nota_redacao": 0, "nota_objetivas": 520`.
+   - Pela regra do vestibular, quem zera a redação não tem o resultado aproveitado. **Quem aplica isso é o CRM:** com `nota_redacao = 0` e a correção concluída, o CRM considera a **nota final do candidato como 0** e oferece a nova chance.
+   - O CRM **não deve exibir nem gravar a `nota` do Moodle** (520 no exemplo) como resultado desse candidato.
+   - O Moodle continua devolvendo a `nota` real da prova e as duas partes separadas. A decisão de zerar é do CRM.
+2. **Decida pelos dois campos novos, não pela `nota`.**
    - Aprovação: `nota_redacao > 0` **e** `nota_objetivas > 0`.
    - Nova chance: um dos dois igual a `0`.
    - Pendente: algum dos dois `null`.
 
    A `nota` sozinha não diz se o candidato cumpriu os dois requisitos.
-2. **`null` não é `0`.** Nunca converta `null` em zero, nem por padrão de campo, banco ou serialização. Fazer isso daria "nova chance" a quem ainda nem foi corrigido. Só `0` de verdade (corrigido com zero ou em branco) leva à nova chance.
-3. **Com `null`, não olhe a `nota`.** No caso raro de recaptação, com a 1ª tentativa corrigida e a 2ª esperando correção, a `nota` pode ter valor enquanto os dois campos estão `null`. Mesmo assim, o certo é "avaliação sendo preparada".
-4. **Decimais:** os valores são números com até **2 casas** (`150`, `150.5`, `333.33`). Não arredonde para comparar com zero: `0.5` é maior que zero. Se o CRM exibir as notas, formate com até 2 casas.
-5. **Consulte de novo até sair do pendente.** A redação é corrigida pela banca depois do envio, então o mesmo candidato passa de `null` para os valores finais. Continue consultando a 4.5 (sob demanda ou em intervalos, como em "Acompanhamento dos resultados", seção 5) até os dois campos terem valor. Use `dataprovade`/`dataprovaate` para limitar a consulta às provas recentes.
-6. **O resultado pode mudar depois:**
+3. **`null` não é `0`.** Nunca converta `null` em zero, nem por padrão de campo, banco ou serialização. Fazer isso daria "nova chance" a quem ainda nem foi corrigido. Só `0` de verdade (corrigido com zero ou em branco) leva à nova chance.
+4. **Com `null`, não olhe a `nota`.** No caso raro de recaptação, com a 1ª tentativa corrigida e a 2ª esperando correção, a `nota` pode ter valor enquanto os dois campos estão `null`. Mesmo assim, o certo é "avaliação sendo preparada".
+5. **Decimais:** os valores são números com até **2 casas** (`150`, `150.5`, `333.33`). Não arredonde para comparar com zero: `0.5` é maior que zero. Se o CRM exibir as notas, formate com até 2 casas.
+6. **Consulte de novo até sair do pendente.** A redação é corrigida pela banca depois do envio, então o mesmo candidato passa de `null` para os valores finais. Continue consultando a 4.5 (sob demanda ou em intervalos, como em "Acompanhamento dos resultados", seção 5) até os dois campos terem valor. Use `dataprovade`/`dataprovaate` para limitar a consulta às provas recentes.
+7. **O resultado pode mudar depois:**
    - se a banca **revisar** a nota de uma redação já corrigida, os valores mudam na próxima consulta;
    - numa **nova tentativa** (4.8), os campos passam a refletir a tentativa que vale para o resultado final, conforme o `metodonota` da prova.
 
    Não trate a primeira resposta com valor como definitiva se o processo permitir revisão.
-7. **A soma confere com a `nota`:** `nota_redacao + nota_objetivas = nota`, com até 2 casas. O CRM pode usar isso como conferência. Se não bater, avise a FAI: isso só acontece se alguém alterar a nota do curso à mão no livro de notas, ou se o curso do vestibular tiver outra atividade valendo nota além da prova.
-8. **A escala depende da prova:** 0–200 e 0–800 valem porque a prova da FAI tem nota máxima 1000 e a redação vale 20%. Se a FAI mudar a prova, a escala acompanha. A regra do CRM (`> 0` e `= 0`) continua valendo do mesmo jeito.
-9. **Os campos sempre vêm na resposta**, com número ou `null`, em todo candidato e em toda página. Não é preciso tratar campo ausente.
-10. **Teste com o piloto:** depois da atualização na produção, consulte a 4.5 do candidato piloto e confira:
+8. **A soma confere com a `nota`:** `nota_redacao + nota_objetivas = nota`, com até 2 casas. O CRM pode usar isso como conferência. Se não bater, avise a FAI: isso só acontece se alguém alterar a nota do curso à mão no livro de notas, ou se o curso do vestibular tiver outra atividade valendo nota além da prova.
+9. **A escala depende da prova:** 0–200 e 0–800 valem porque a prova da FAI tem nota máxima 1000 e a redação vale 20%. Se a FAI mudar a prova, a escala acompanha. A regra do CRM (`> 0` e `= 0`) continua valendo do mesmo jeito.
+10. **Os campos sempre vêm na resposta**, com número ou `null`, em todo candidato e em toda página. Não é preciso tratar campo ausente.
+11. **Teste com o piloto:** depois da atualização na produção, consulte a 4.5 do candidato piloto e confira:
     - os dois campos têm valor, a soma dá a `nota` e o CRM mostra a mensagem certa (parabéns e pré-matrícula, ou nova chance);
     - num candidato com a redação ainda não corrigida, o CRM mantém "a avaliação está sendo preparada".
 

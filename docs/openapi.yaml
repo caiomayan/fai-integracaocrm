@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API de integração CRM ↔ Moodle (Vestibular FAI)
-  version: 1.9.1
+  version: 1.9.2
   description: |
     API JSON para o CRM cadastrar candidatos, matriculá-los no curso do Vestibular e consultar os resultados da prova.
     Ela é servida pelo adaptador `local/faicrm/rest_json.php` do plugin `local_faicrm`, que repassa cada chamada ao
@@ -1586,7 +1586,7 @@ components:
       additionalProperties: true
     Candidato:
       type: object
-      required: [username, firstname, lastname, email, courseid, nota, concluido, datamatricula, dataprova, dataconclusao, tentativas, podefazerprova]
+      required: [username, firstname, lastname, email, courseid, nota, concluido, datamatricula, dataprova, dataconclusao, tentativas, podefazerprova, nota_redacao, nota_objetivas]
       properties:
         username:
           type: string
@@ -1628,6 +1628,20 @@ components:
           description: |
             `true` se ele pode iniciar ou continuar uma tentativa agora (matrícula ativa, prova visível e aberta, tentativa
             disponível ou em andamento, considerando a exceção de nova tentativa).
+        nota_redacao:
+          type: number
+          nullable: true
+          description: |
+            (1.9.2) Nota da redação: a questão da posição 1 da prova (não o id 1 do banco), na escala da `nota` (0 a 200
+            na FAI), da mesma tentativa usada na `nota`. `null` com a correção pendente, sem prova finalizada ou com mais
+            de uma prova com tentativa no curso. Zero é zero (inclusive em branco). Com a correção concluída,
+            `nota_redacao + nota_objetivas = nota`.
+        nota_objetivas:
+          type: number
+          nullable: true
+          description: |
+            (1.9.2) Soma das outras questões, na escala da `nota` (0 a 800 na FAI), da mesma tentativa usada na `nota`.
+            `null` nos mesmos casos da `nota_redacao` (sempre os dois juntos).
     ResultadoPaginado:
       type: object
       required: [total, pagina, porpagina, totalpaginas, candidatos]

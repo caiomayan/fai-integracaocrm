@@ -4,11 +4,22 @@ API para o CRM **cadastrar candidatos**, **matriculá-los no curso do Vestibular
 
 Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
-**Versão do contrato:** 1.9.1, de 13/10/2026 (plugin `local_faicrm` 1.9.1). Para o CRM, a 1.9.1 é igual à 1.9.0.
+**Versão do contrato:** 1.9.2, de 15/10/2026 (plugin `local_faicrm` 1.9.2).
 
 ---
 
 ## 0. O que mudou nesta versão — o que o CRM precisa fazer
+
+### Novo na 1.9.2: notas da redação e das objetivas nos resultados (4.5)
+Cada candidato da operação **4.5** ganha dois campos:
+- **`nota_redacao`**: nota da redação (a questão 1 da prova), de **0 a 200**;
+- **`nota_objetivas`**: a soma das outras questões, de **0 a 800**.
+
+Com a correção concluída, **`nota_redacao + nota_objetivas = nota`**. Quando a correção está **pendente**, os dois vêm **`null`**, nunca zero.
+
+Nada mais muda: as outras operações, os outros campos da 4.5, os tokens e o SSO continuam iguais. A regra completa e os exemplos estão na **4.5**.
+
+### Da 1.9.0: acesso automático à prova (SSO)
 
 **Novidade:** a **operação 4.10**, de acesso automático à prova (SSO). O candidato clica em **"Realizar minha prova"** no CRM e abre a prova no Moodle **já logado**, sem senha e sem segundo login.
 
@@ -246,7 +257,8 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
     "datamatricula": "2026-10-01T09:15:00-03:00",
     "dataprova": "2026-10-07T14:32:10-03:00",
     "dataconclusao": "2026-10-07T14:32:10-03:00",
-    "tentativas": 1, "podefazerprova": false
+    "tentativas": 1, "podefazerprova": false,
+    "nota_redacao": 160, "nota_objetivas": 600
   }]
 }
 ```
@@ -256,6 +268,8 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 | `total` | inteiro | candidatos encontrados (com os filtros aplicados) |
 | `totalpaginas` | inteiro | `0` quando não há candidatos |
 | `nota` | número ou `null` | nota da prova, de 0 a 1000; `null` se ainda não fez |
+| `nota_redacao` | número ou `null` | nota da **redação**, de 0 a 200 (1.9.2). Veja as regras abaixo |
+| `nota_objetivas` | número ou `null` | soma das **objetivas**, de 0 a 800 (1.9.2). Veja as regras abaixo |
 | `concluido` | booleano | `true` quando o Moodle marcou o curso como concluído (pode levar alguns minutos depois da prova) |
 | `datamatricula` | data ou `null` | quando foi matriculado |
 | `dataprova` | data ou `null` | quando finalizou a prova (última tentativa finalizada) |
@@ -265,6 +279,62 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 
 - Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`. Uma página além da última traz `candidatos: []`.
 - Erros: `400` para `pagina` menor que 1, data em formato inválido, `dataprovade` depois de `dataprovaate`, ou envio de `porpagina`. `404` "Curso não encontrado."
+
+#### `nota_redacao` e `nota_objetivas` (1.9.2)
+**De onde vêm:**
+- **Redação** = a nota da **questão da posição 1 da prova**, na ordem em que aparece para o candidato. Não é o id 1 do banco de questões. Um texto de instruções sem nota antes dela não conta como questão.
+- **Objetivas** = a soma de **todas as outras questões**.
+- Na mesma escala da `nota`: na prova da FAI, redação de 0 a 200 e objetivas de 0 a 800. Duas casas decimais.
+- **Mesma tentativa do resultado final:** os dois campos vêm da mesma tentativa que gerou a `nota`, conforme o `metodonota` da prova (4.7). Com `maior`, é a tentativa de maior nota. Com `media`, é a média de cada parte entre as tentativas. Por isso, com a correção concluída, **`nota_redacao + nota_objetivas = nota`**.
+
+**Quando vêm `null` (nunca zero nesses casos):**
+- **correção pendente:** alguma tentativa finalizada da prova ainda tem questão esperando correção manual, como a redação ainda não corrigida pela banca. Nesse caso a `nota` também costuma vir `null`;
+- o candidato **ainda não finalizou** a prova;
+- o curso tem **mais de uma prova** com tentativa finalizada do candidato, e não dá para saber qual é a do resultado. Isso não acontece no Vestibular, que tem uma prova por curso.
+
+**Zero é zero:** uma redação corrigida com 0, ou deixada **em branco** e encerrada, vem `0`. Objetivas todas erradas vêm `0`.
+
+**Como o CRM usa** (regra definida pela FAI, aplicada pelo CRM):
+
+| `nota_redacao` | `nota_objetivas` | Situação | O CRM faz |
+|---|---|---|---|
+| `> 0` | `> 0` | aprovado | aprovação automática, mensagem de parabéns e pré-matrícula |
+| `= 0` | qualquer valor | correção concluída, redação zerada | oferecer nova chance |
+| qualquer valor | `= 0` | correção concluída, objetivas zeradas | oferecer nova chance |
+| `null` | `null` | correção pendente ou prova não feita | "a avaliação está sendo preparada", sem aprovar nem reprovar |
+
+- Não há nota mínima total nesse processo. A mínima de 400 é só do ENEM.
+- Os dois campos vêm `null` **juntos**, ou com valor **juntos**. Na dúvida, trate `null` em qualquer um como pendente.
+- Para saber se o candidato fez a prova, use `dataprova` e `tentativas`. Use `podefazerprova` para saber se ele ainda pode fazer.
+
+**Exemplo** (dados fictícios), um candidato em cada situação:
+```json
+{
+  "total": 5, "pagina": 1, "porpagina": 100, "totalpaginas": 1,
+  "candidatos": [
+    { "username": "00000000001", "firstname": "Candidato", "lastname": "Aprovado", "email": "aprovado@example.com", "courseid": 10,
+      "nota": 740, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:30:00-03:00",
+      "dataconclusao": "2026-10-15T09:31:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 140, "nota_objetivas": 600 },
+    { "username": "00000000002", "firstname": "Candidato", "lastname": "Redacao Zerada", "email": "redacao@example.com", "courseid": 10,
+      "nota": 520, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:40:00-03:00",
+      "dataconclusao": "2026-10-15T09:41:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 0, "nota_objetivas": 520 },
+    { "username": "00000000003", "firstname": "Candidato", "lastname": "Objetivas Zeradas", "email": "objetivas@example.com", "courseid": 10,
+      "nota": 150, "concluido": true, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T09:50:00-03:00",
+      "dataconclusao": "2026-10-15T09:51:00-03:00", "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": 150, "nota_objetivas": 0 },
+    { "username": "00000000004", "firstname": "Candidato", "lastname": "Correcao Pendente", "email": "pendente@example.com", "courseid": 10,
+      "nota": null, "concluido": false, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": "2026-10-15T10:00:00-03:00",
+      "dataconclusao": null, "tentativas": 1, "podefazerprova": false,
+      "nota_redacao": null, "nota_objetivas": null },
+    { "username": "00000000005", "firstname": "Candidato", "lastname": "Sem Prova", "email": "semprova@example.com", "courseid": 10,
+      "nota": null, "concluido": false, "datamatricula": "2026-10-15T08:00:00-03:00", "dataprova": null,
+      "dataconclusao": null, "tentativas": 0, "podefazerprova": true,
+      "nota_redacao": null, "nota_objetivas": null }
+  ]
+}
+```
 
 ### 4.6 Listar cursos — `local_faicrm_listar_cursos`
 

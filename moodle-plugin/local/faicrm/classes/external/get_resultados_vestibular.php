@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->libdir . '/gradelib.php');
 require_once($CFG->dirroot . '/grade/querylib.php');
+require_once($CFG->dirroot . '/mod/quiz/lib.php');
 
 /**
  * Returns the vestibular results (course total and course completion) of the students of a course.
@@ -212,6 +213,134 @@ class get_resultados_vestibular extends external_api {
     }
 
     /**
+     * Computes, in batch for a page of users, the essay score (the first question of the quiz) and the objective score (all
+     * the other questions), on the scale of the quiz grade (spec 008).
+     *
+     * The quiz is the one of the course where the user has finished attempts (more than one quiz: null). The attempt is the
+     * one the grading method of the quiz picks. A finished attempt of the quiz waiting for manual grading makes both null.
+     * A fixed number of queries, independent of the number of users: the finished attempts and the last step of each question.
+     *
+     * @param int $courseid Course id.
+     * @param int[] $userids Ids of the users of the page.
+     * @return array [userid => ['nota_redacao' => float|null, 'nota_objetivas' => float|null]]
+     */
+    protected static function calcular_notas(int $courseid, array $userids): array {
+        global $DB;
+
+        $result = [];
+        foreach ($userids as $userid) {
+            $result[$userid] = ['nota_redacao' => null, 'nota_objetivas' => null];
+        }
+
+        [$uinsql, $uparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'nu');
+        $attempts = $DB->get_records_sql(
+            "SELECT qa.id, qa.userid, qa.quiz, qa.attempt, qa.uniqueid, q.grade, q.sumgrades, q.grademethod
+               FROM {quiz_attempts} qa
+               JOIN {quiz} q ON q.id = qa.quiz
+              WHERE q.course = :course AND qa.state = 'finished' AND qa.preview = 0 AND qa.userid $uinsql
+           ORDER BY qa.userid, qa.attempt, qa.id",
+            ['course' => $courseid] + $uparams
+        );
+        if (!$attempts) {
+            return $result;
+        }
+
+        // Last step of every question of those attempts: state, fraction and maximum mark.
+        [$qinsql, $qparams] = $DB->get_in_or_equal(array_column($attempts, 'uniqueid'), SQL_PARAMS_NAMED, 'nq');
+        $slots = [];
+        $rs = $DB->get_recordset_sql(
+            "SELECT qatt.id, qatt.questionusageid, qatt.slot, qatt.maxmark, qas.state, qas.fraction
+               FROM {question_attempts} qatt
+               JOIN {question_attempt_steps} qas ON qas.questionattemptid = qatt.id
+              WHERE qatt.questionusageid $qinsql
+                    AND qas.sequencenumber = (SELECT MAX(last.sequencenumber)
+                                                FROM {question_attempt_steps} last
+                                               WHERE last.questionattemptid = qatt.id)",
+            $qparams
+        );
+        foreach ($rs as $row) {
+            $slots[$row->questionusageid][(int) $row->slot] = $row;
+        }
+        $rs->close();
+
+        $byuser = [];
+        foreach ($attempts as $attempt) {
+            $byuser[$attempt->userid][] = $attempt;
+        }
+        foreach ($byuser as $userid => $list) {
+            $notas = self::notas_do_usuario($list, $slots);
+            if ($notas !== null) {
+                $result[$userid] = $notas;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * The two scores of one user, from the finished attempts (ordered by attempt number) and the last step of each question.
+     *
+     * @param \stdClass[] $list Finished attempts of the user, with the quiz grade, sumgrades and grademethod.
+     * @param array $slots [uniqueid => [slot => row with maxmark, state, fraction]]
+     * @return array|null ['nota_redacao' => float, 'nota_objetivas' => float], or null when it can not be known
+     */
+    protected static function notas_do_usuario(array $list, array $slots): ?array {
+        $quizzes = array_unique(array_column($list, 'quiz'));
+        $quiz = $list[0];
+        if (count($quizzes) > 1 || (float) $quiz->sumgrades <= 0) {
+            return null;
+        }
+        $factor = (float) $quiz->grade / (float) $quiz->sumgrades;
+
+        $parts = [];
+        foreach ($list as $attempt) {
+            $questions = $slots[$attempt->uniqueid] ?? [];
+            ksort($questions);
+            $essay = null;
+            $total = 0.0;
+            foreach ($questions as $slot => $question) {
+                if ($question->state === 'needsgrading') {
+                    return null;
+                }
+                $mark = (float) $question->fraction * (float) $question->maxmark;
+                $total += $mark;
+                if ($essay === null && (float) $question->maxmark > 0) {
+                    $essay = $mark;
+                }
+            }
+            if ($essay === null) {
+                return null;
+            }
+            $essayscore = round($essay * $factor, 2);
+            $totalscore = round($total * $factor, 2);
+            $parts[] = ['redacao' => $essayscore, 'objetivas' => round($totalscore - $essayscore, 2), 'total' => $totalscore];
+        }
+
+        switch ((int) $quiz->grademethod) {
+            case QUIZ_ATTEMPTFIRST:
+                $chosen = $parts[0];
+                break;
+            case QUIZ_ATTEMPTLAST:
+                $chosen = $parts[count($parts) - 1];
+                break;
+            case QUIZ_GRADEAVERAGE:
+                $chosen = [
+                    'redacao' => round(array_sum(array_column($parts, 'redacao')) / count($parts), 2),
+                    'objetivas' => round(array_sum(array_column($parts, 'objetivas')) / count($parts), 2),
+                ];
+                break;
+            default:
+                // Highest grade; a tie keeps the first attempt.
+                $chosen = $parts[0];
+                foreach ($parts as $part) {
+                    if ($part['total'] > $chosen['total']) {
+                        $chosen = $part;
+                    }
+                }
+        }
+        return ['nota_redacao' => (float) $chosen['redacao'], 'nota_objetivas' => (float) $chosen['objetivas']];
+    }
+
+    /**
      * Returns one page of the users with the student role in the course, with course total, completion and dates.
      *
      * @param int $courseid Course id.
@@ -329,6 +458,7 @@ class get_resultados_vestibular extends external_api {
         );
 
         $tentativas = self::calcular_tentativas($courseid, $userids);
+        $notas = self::calcular_notas($courseid, $userids);
 
         foreach ($users as $user) {
             $nota = null;
@@ -347,6 +477,8 @@ class get_resultados_vestibular extends external_api {
                 'email' => $user->email,
                 'courseid' => $courseid,
                 'nota' => $nota,
+                'nota_redacao' => $notas[$user->id]['nota_redacao'],
+                'nota_objetivas' => $notas[$user->id]['nota_objetivas'],
                 'concluido' => isset($completions[$user->id]),
                 'datamatricula' => self::format_date($enrolments[$user->id]->firstenrol ?? null),
                 'dataprova' => self::format_date($attempts[$user->id]->lastfinish ?? null),
@@ -381,6 +513,23 @@ class get_resultados_vestibular extends external_api {
                     'nota' => new external_value(
                         PARAM_FLOAT,
                         'Course total (raw value), null when not graded yet',
+                        VALUE_REQUIRED,
+                        null,
+                        NULL_ALLOWED
+                    ),
+                    'nota_redacao' => new external_value(
+                        PARAM_FLOAT,
+                        'Score of the first question of the quiz (the essay), on the scale of the quiz grade, 2 decimals; ' .
+                        'null when there is no finished attempt, the correction is pending or the quiz is ambiguous',
+                        VALUE_REQUIRED,
+                        null,
+                        NULL_ALLOWED
+                    ),
+                    'nota_objetivas' => new external_value(
+                        PARAM_FLOAT,
+                        'Score of all the other questions of the quiz, on the scale of the quiz grade, 2 decimals (the essay ' .
+                        'plus the objectives is the quiz grade); null when there is no finished attempt, the correction is ' .
+                        'pending or the quiz is ambiguous',
                         VALUE_REQUIRED,
                         null,
                         NULL_ALLOWED

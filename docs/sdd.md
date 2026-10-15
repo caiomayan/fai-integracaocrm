@@ -21,6 +21,7 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 ## Specs
 | ID | Spec | Status |
 |---|---|---|
+| 008 | [Notas da redação e das objetivas nos resultados (urgência)](specs/008-notas-redacao-objetivas/requirements.md) | ✅ concluída (1.9.2, ramo hotfix/1.9.2, aprovada pelo QA) |
 | 006 | [Acesso automático à prova (SSO CRM → Moodle)](specs/006-acesso-automatico-prova/requirements.md) | ✅ concluída (1.9.1, aprovada pelo QA) |
 | 001 | [Ambiente de desenvolvimento](specs/001-ambiente-dev/spec.md) | ✅ concluída |
 | 005 | [Correções da auditoria de cliente](specs/005-auditoria-cliente/requirements.md) | ✅ revalidada (1.8.4, aprovada para homologação) |

@@ -1,5 +1,12 @@
 # Histórico de versões — local_faicrm
 
+## 1.9.2 (2026101302)
+Notas da redação e das objetivas nos resultados do vestibular (spec 008):
+- A operação `local_faicrm_get_resultados_vestibular` ganha dois campos por candidato: **`nota_redacao`** (a questão da posição 1 da prova, a primeira com nota na ordem da prova; uma "Descrição" no início não conta) e **`nota_objetivas`** (todas as outras questões), na mesma escala da `nota`; a redação mais as objetivas dá a nota da tentativa. Duas casas decimais.
+- A tentativa é a do resultado final, conforme o método de avaliação da prova (maior nota, primeira, última, ou a média de cada parte).
+- `null` nos dois quando não há tentativa finalizada, quando alguma tentativa finalizada da prova espera correção manual, ou quando o candidato tem tentativas finalizadas em mais de uma prova do curso. Redação em branco vale 0.
+- O cálculo é feito em lote para a página, sem uma consulta por candidato. Nada mais muda.
+
 ## 1.9.1 (2026101301)
 - Acesso automático à prova: além das categorias, é possível liberar **cursos específicos** (configuração nova "Cursos liberados", `local_faicrm/sso_cursos`), para quando todos os cursos estão numa categoria só. Categorias e cursos valem juntos (união); curso excluído é ignorado e a página inicial nunca entra. Sem nenhuma categoria e nenhum curso, o acesso automático continua desligado.
 - O diagnóstico do acesso automático passa a contar categorias **ou** cursos liberados.

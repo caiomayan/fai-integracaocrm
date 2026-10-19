@@ -1,10 +1,14 @@
 # Implantação só pelo painel do Moodle
 
-> **Já tem a integração e o SSO funcionando (1.9.0 ou 1.9.1)? Para ir à 1.9.2, só atualize o plugin.**
-> 1. **Administração do site → Plugins → Instalar plugins** → envie o **`local_faicrm-1.9.2.zip`** → **Instalar plugin do arquivo ZIP** → **Continuar** → **Atualizar base de dados do Moodle agora** → **Continuar**.
-> 2. Pronto. **Não refaça nenhum passo** deste roteiro: os papéis, os usuários `ws_crm` e `ws_sso`, os tokens, os serviços, o auth_userkey e as configurações do SSO continuam como estão. A 1.9.2 não tem configuração nova.
-> 3. **Vindo da 1.9.0**, a atualização também traz "Cursos liberados" (S2b), da 1.9.1. A liberação por categoria que você já tem continua valendo.
-> 4. Para conferir: em **Plugins → Visão geral dos plugins**, "FAI CRM integration" deve mostrar **1.9.2 (2026101302)**. Na página do SSO, o diagnóstico continua todo OK. A operação 4.5 passa a trazer `nota_redacao` e `nota_objetivas`.
+> **Já tem a integração e o SSO funcionando (1.9.0, 1.9.1 ou 1.9.2)? Para ir à 1.10.1, só atualize o plugin.**
+> 1. **Administração do site → Plugins → Instalar plugins** → envie o **`local_faicrm-1.10.1.zip`** → **Instalar plugin do arquivo ZIP** → **Continuar** → **Atualizar base de dados do Moodle agora** → **Continuar**.
+> 2. **Não refaça nenhum passo** deste roteiro: os papéis, os usuários `ws_crm` e `ws_sso`, os tokens, os serviços, o auth_userkey e as configurações do SSO continuam como estão.
+> 3. A 1.10.1 traz duas configurações novas na página do SSO, **"URL de retorno após a prova"** e **"Mensagem ao concluir"**. As duas vêm **vazias**, e com elas vazias **nada muda** para o candidato. Quando o time do CRM enviar a URL, preencha o **S10**. Isso pode ser feito depois, a qualquer momento, sem reinstalar nada.
+> 4. Para conferir:
+>    - em **Plugins → Visão geral dos plugins**, "FAI CRM integration" deve mostrar **1.10.1 (2026101900)**;
+>    - na página do SSO, o diagnóstico continua todo OK e ganha dois itens: "O segredo do retorno existe." e "Retorno ao CRM após a prova: desligado (sem URL)" (enquanto a URL estiver vazia);
+>    - a operação 4.5 continua trazendo `nota_redacao` e `nota_objetivas`, e passa a aceitar o filtro opcional `username` (CPF).
+> 5. **Vindo da 1.9.0**, a atualização também traz "Cursos liberados" (S2b), da 1.9.1. A liberação por categoria que você já tem continua valendo.
 >
 > Os passos abaixo são para uma instalação **nova** (1 a 11) ou para ligar o SSO **pela primeira vez** (S1 a S9).
 
@@ -93,7 +97,7 @@ Por canal seguro: a URL do Moodle, o **token**, o **id do curso** e o **id da pr
 
 ---
 
-# Acesso automático à prova (SSO) — a partir da 1.9.1; retorno ao CRM a partir da 1.10.0
+# Acesso automático à prova (SSO) — a partir da 1.9.1; retorno ao CRM a partir da 1.10.1
 
 Com o SSO, o candidato clica em **"Realizar minha prova"** no CRM e cai na prova **já logado**, sem uma segunda senha ([spec 006](specs/006-acesso-automatico-prova/requirements.md)). Ele usa o plugin da comunidade **User key authentication** (`auth_userkey` **2022081902**), com um **token separado** do token da integração.
 
@@ -209,7 +213,7 @@ O link gerado também fica registrado: em **Relatórios → Logs**, escolha o **
 
 Depois apague o candidato de teste.
 
-## S10. Retorno ao CRM depois da prova (opcional, a partir da 1.10.0)
+## S10. Retorno ao CRM depois da prova (opcional, a partir da 1.10.1)
 Quando o candidato que entrou pelo CRM termina a prova, o Moodle pode mostrar "Prova enviada com sucesso!" e, em 5 segundos, levá-lo de volta a uma página do CRM, já deslogado do Moodle.
 
 **Administração do site → Plugins → Plugins locais → FAI CRM: acesso automático à prova**:
@@ -218,7 +222,7 @@ Quando o candidato que entrou pelo CRM termina a prova, o Moodle pode mostrar "P
   - **Não coloque token, CPF nem senha** na URL: ela vai para todos os candidatos.
   - Vazia = sem retorno, e o candidato fica no Moodle como antes.
 - **"Mensagem ao concluir"** (opcional): um texto curto que aparece na tela de confirmação, por exemplo "O resultado será divulgado no portal do candidato.".
-- **Salvar mudanças.** No diagnóstico do topo, o item do retorno mostra **OK** e o domínio configurado.
+- **Salvar mudanças.** No diagnóstico do topo, o item do retorno mostra **OK** e "ligado, para" o domínio configurado. Se aparecer **FALHA** ("não é aceitável"), a URL foi recusada: confira se começa com `https://` e não tem espaços.
 
 O Moodle acrescenta à URL `?status=concluida&cmid=<id da prova>`. O retorno só vale para quem entrou pelo link do CRM, e só na prova desse link. Quem entra pelo login normal continua vendo a revisão da prova, como hoje.
 

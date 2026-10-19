@@ -409,6 +409,9 @@ paths:
           o "de" vale a partir de 00:00:00 e o "até" até 23:59:59 do dia. Com filtro, quem não fez a prova fica de fora,
           e `total` e `totalpaginas` respeitam o filtro. Um dia exato: os dois iguais.
         - Curso sem candidatos: `total: 0`, `totalpaginas: 0`, `candidatos: []`.
+        - **Um candidato só (1.10.1).** `username` = o CPF do cadastro (só dígitos) traz só esse candidato, com `total` 0 ou 1.
+          A comparação é exata (sem busca parcial), sem diferença de maiúsculas e sem os espaços das pontas.
+          CPF não encontrado, ou que não é estudante do curso, devolve `200` vazio, e não erro. Combina com o filtro por data.
       requestBody:
         required: true
         content:
@@ -433,6 +436,10 @@ paths:
                   type: string
                   format: date
                   description: Só candidatos com prova até este dia (23:59:59). Vazio = sem limite.
+                username:
+                  type: string
+                  maxLength: 100
+                  description: CPF do candidato (o `username` do cadastro). Traz só esse candidato. Vazio = todos (1.10.1).
             examples:
               primeiraPagina:
                 summary: Primeira página
@@ -449,6 +456,11 @@ paths:
                 value:
                   courseid: 10
                   pagina: 2
+              umCandidato:
+                summary: Um candidato só, pelo CPF (1.10.1)
+                value:
+                  courseid: 10
+                  username: "12345678900"
       responses:
         '200':
           description: Página de resultados.
@@ -520,6 +532,10 @@ paths:
                   summary: dataprovade posterior a dataprovaate
                   value:
                     message: "Dados inválidos: dataprovade não pode ser posterior a dataprovaate."
+                usernameLongo:
+                  summary: username com mais de 100 caracteres
+                  value:
+                    message: "Dados inválidos: username deve ter no máximo 100 caracteres."
         '401':
           $ref: '#/components/responses/NaoAutenticado'
         '403':
@@ -897,7 +913,7 @@ paths:
         para **candidato** (conta só com o papel Estudante, só em cursos liberados) com matrícula ativa no curso da prova.
         Admin, equipe, contas técnicas e alunos de outros cursos recebem 403.
 
-        **Retorno (1.10.0):** quando a FAI configura a "URL de retorno após a prova", o candidato que entrou por este
+        **Retorno (1.10.1):** quando a FAI configura a "URL de retorno após a prova", o candidato que entrou por este
         link, ao terminar a prova, é deslogado do Moodle e levado a `{URL de retorno}?status=concluida&cmid={cmid}`
         (GET, sem dados pessoais). Os parâmetros não provam nada: o resultado vem da operação de resultados.
         Detalhes na seção 6 do contrato.

@@ -10,8 +10,18 @@ Referência formal: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.0).
 
 ## 0. O que mudou nesta versão — o que o CRM precisa fazer
 
-### Novo na 1.10.1: retorno ao CRM depois da prova (seção 6)
-Quando o candidato que entrou pela 4.10 termina a prova, o Moodle mostra "Prova enviada com sucesso!" e, em 5 segundos, o leva de volta a uma **página do CRM**. Para isso, o CRM precisa **criar essa página e informar o endereço dela à FAI**. Veja o checklist da seção 6.
+### Novo na 1.10.1
+A 1.10.1 junta numa versão só o que já estava pronto (o retorno ao CRM) com as notas da 1.9.2, e acrescenta um filtro opcional na 4.5. **Nada do que o CRM já usa muda:** as operações, os endereços, os campos, os erros e os tokens continuam iguais.
+
+1. **Retorno ao CRM depois da prova** (seção **6**). Quando o candidato que entrou pela 4.10 termina a prova, o Moodle mostra "Prova enviada com sucesso!" e, em 5 segundos, o leva de volta a uma **página do CRM**, com `?status=concluida&cmid=<prova>`.
+   - **O que o CRM precisa fazer:** criar essa página e **informar o endereço dela à FAI**, que o configura no Moodle. Veja o checklist da seção 6.
+   - Enquanto a FAI não configurar o endereço, nada muda: o candidato continua no Moodle ao terminar a prova, como hoje.
+2. **Filtro opcional por CPF na 4.5** (`username`). Em vez de ler a turma inteira, o CRM pode consultar **um candidato só**:
+   ```json
+   { "courseid": 10, "username": "12345678900" }
+   ```
+   - A resposta tem o mesmo formato de sempre, com `total` 0 ou 1.
+   - **O que o CRM precisa fazer:** nada é obrigatório. **Recomendado:** para acompanhar quem está com a correção pendente (`nota_redacao`/`nota_objetivas` `null`), ou quem acabou de voltar da prova pelo retorno, consulte **por CPF**, só esses candidatos, em vez de ler todas as páginas a cada minuto. Veja "Consultar um candidato só" na 4.5 e "Acompanhamento dos resultados" (seção 5).
 
 ### Da 1.9.2: notas da redação e das objetivas nos resultados (4.5)
 Cada candidato da operação **4.5** ganha dois campos:
@@ -53,7 +63,7 @@ No lugar dela, use a **`local_faicrm_gerar_link_prova`** (4.10). Ela só gera li
 
 ### Pré-requisitos do lado da FAI (não são tarefa do CRM)
 Antes de o SSO funcionar, a FAI configura no Moodle:
-- o plugin `local_faicrm` 1.9.1 e o `auth_userkey`;
+- o plugin `local_faicrm` (1.9.1 ou mais nova; hoje, 1.10.1) e o `auth_userkey`;
 - o **curso de cada vestibular liberado para o acesso automático** (em "Cursos liberados" ou "Categorias liberadas");
 - a conta técnica `ws_sso` e o token, que a FAI entrega ao CRM.
 
@@ -268,12 +278,17 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 { "courseid": 10, "pagina": 1, "dataprovade": "2026-10-01", "dataprovaate": "2026-10-31" }
 ```
 
+```json
+{ "courseid": 10, "username": "12345678900" }
+```
+
 | Campo | Tipo | Obrigatório | Regra |
 |---|---|---|---|
 | `courseid` | inteiro | sim | id do curso |
 | `pagina` | inteiro | não | começa em 1 (padrão 1). **100 candidatos por página**, fixo |
 | `dataprovade` | texto | não | `AAAA-MM-DD`: só quem fez a prova a partir desse dia (00:00:00) |
 | `dataprovaate` | texto | não | `AAAA-MM-DD`: só quem fez a prova até esse dia (23:59:59) |
+| `username` | texto | não | **CPF** do candidato (o mesmo `username` do cadastro, 4.1/4.2): traz **só ele** (1.10.1). Vazio = todos |
 
 **200**
 ```json
@@ -307,7 +322,19 @@ O histórico de provas é mantido. Se o candidato for matriculado de novo, `tent
 | `podefazerprova` | booleano | `true` se pode iniciar ou continuar uma tentativa agora |
 
 - Para ler todos os candidatos, chame `pagina` de 1 até `totalpaginas`. Uma página além da última traz `candidatos: []`.
-- Erros: `400` para `pagina` menor que 1, data em formato inválido, `dataprovade` depois de `dataprovaate`, ou envio de `porpagina`. `404` "Curso não encontrado."
+- Erros: `400` para `pagina` menor que 1, data em formato inválido, `dataprovade` depois de `dataprovaate`, `username` com mais de 100 caracteres, ou envio de `porpagina`. `404` "Curso não encontrado."
+
+#### Consultar um candidato só (`username`, 1.10.1)
+Envie o CPF do candidato em `username` para receber **só ele**, com todos os campos de sempre (inclusive `nota_redacao` e `nota_objetivas`):
+```json
+{ "courseid": 10, "username": "12345678900" }
+```
+- **Mesmo valor do cadastro:** é o `username` usado na 4.1/4.2, **só dígitos**, sem pontos nem traço. A comparação é **exata**: não é busca por parte do CPF. Maiúsculas e espaços nas pontas são ignorados.
+- **Encontrou:** `total: 1`, `totalpaginas: 1` e o candidato em `candidatos`.
+- **Não encontrou** (CPF não cadastrado, não matriculado como estudante nesse curso, ou conta excluída): **`200`** com `total: 0`, `totalpaginas: 0` e `candidatos: []`. Não é erro. Se o CRM esperava o candidato ali, confira o cadastro e a matrícula (4.1 e 4.3).
+- **Combina com as datas:** com `dataprovade`/`dataprovaate`, o candidato só vem se a prova dele estiver no período.
+- **Quando usar:** para acompanhar candidatos **específicos**, como quem está com a correção pendente ou quem acabou de voltar da prova pelo retorno (seção 6). Para sincronizar a turma inteira, continue sem `username`, percorrendo as páginas.
+- **Uma chamada por candidato.** Não é preciso paginar. Para muitos candidatos de uma vez, prefira a lista completa com `dataprovade`/`dataprovaate`, em vez de centenas de chamadas por CPF.
 
 #### `nota_redacao` e `nota_objetivas` (1.9.2)
 **De onde vêm:**
@@ -352,7 +379,9 @@ Se o CRM foi implementado com os nomes e a regra acima, ele já funciona. Confir
 3. **`null` não é `0`.** Nunca converta `null` em zero, nem por padrão de campo, banco ou serialização. Fazer isso daria "nova chance" a quem ainda nem foi corrigido. Só `0` de verdade (corrigido com zero ou em branco) leva à nova chance.
 4. **Com `null`, não olhe a `nota`.** No caso raro de recaptação, com a 1ª tentativa corrigida e a 2ª esperando correção, a `nota` pode ter valor enquanto os dois campos estão `null`. Mesmo assim, o certo é "avaliação sendo preparada".
 5. **Decimais:** os valores são números com até **2 casas** (`150`, `150.5`, `333.33`). Não arredonde para comparar com zero: `0.5` é maior que zero. Se o CRM exibir as notas, formate com até 2 casas.
-6. **Consulte de novo até sair do pendente.** A redação é corrigida pela banca depois do envio, então o mesmo candidato passa de `null` para os valores finais. Continue consultando a 4.5 (sob demanda ou em intervalos, como em "Acompanhamento dos resultados", seção 5) até os dois campos terem valor. Use `dataprovade`/`dataprovaate` para limitar a consulta às provas recentes.
+6. **Consulte de novo até sair do pendente.** A redação é corrigida pela banca depois do envio, então o mesmo candidato passa de `null` para os valores finais. Continue consultando a 4.5 (sob demanda ou em intervalos, como em "Acompanhamento dos resultados", seção 5) até os dois campos terem valor.
+   - **Recomendado (1.10.1):** consulte **só os pendentes, por CPF** (`username`), em vez de ler a turma toda a cada vez. Veja "Consultar um candidato só", acima.
+   - Para a turma, use `dataprovade`/`dataprovaate` para limitar a consulta às provas recentes.
 7. **O resultado pode mudar depois:**
    - se a banca **revisar** a nota de uma redação já corrigida, os valores mudam na próxima consulta;
    - numa **nova tentativa** (4.8), os campos passam a refletir a tentativa que vale para o resultado final, conforme o `metodonota` da prova.
@@ -547,8 +576,13 @@ Também funciona pelo servidor REST nativo do Moodle (`/webservice/rest/server.p
 
 ### Acompanhamento dos resultados
 - Consultar **sob demanda** ou em **intervalos** (ex.: a cada 10–15 minutos), nunca em loop contínuo.
-- Percorrer as páginas de 1 até `totalpaginas`.
-- Para sincronizar só as provas recentes, usar `dataprovade` / `dataprovaate`.
+- **Turma inteira:** percorrer as páginas de 1 até `totalpaginas`. Para sincronizar só as provas recentes, usar `dataprovade` / `dataprovaate`.
+- **Candidatos específicos (1.10.1):** consultar **por CPF** (`username`), um por chamada. É o jeito recomendado para:
+  - acompanhar quem está com a **correção pendente** (`nota_redacao`/`nota_objetivas` `null`) até sair o resultado;
+  - atualizar o status de quem **acabou de voltar da prova** pelo retorno (seção 6).
+
+  Assim o CRM lê só quem interessa, e não a turma toda a cada consulta.
+- Intervalo sugerido para os pendentes: a cada **10–15 minutos**. A redação depende da correção da banca, que pode levar horas ou dias.
 
 ### Recaptação (refazer a prova)
 1. Nos resultados, `tentativas ≥ 1` com `podefazerprova: false` indica quem já fez a prova e não pode refazer.
@@ -599,6 +633,8 @@ GET {URL de retorno do CRM}?status=concluida&cmid=22
 
   Nesses casos ele fica no Moodle, como hoje.
 
+**Pré-requisito do lado da FAI:** o plugin `local_faicrm` **1.10.1** (ou mais nova) na produção e a URL de retorno configurada (roteiro do painel, passo S10). Até lá, o candidato continua no Moodle ao terminar a prova.
+
 ### Checklist de implementação no CRM
 1. **Criar a página de retorno**, por exemplo `https://<crm>/vestibular/prova-enviada`:
    - **precisa ser `https://`**;
@@ -610,8 +646,9 @@ GET {URL de retorno do CRM}?status=concluida&cmid=22
 3. **Não use os parâmetros como prova de nada.** Qualquer pessoa pode abrir `…?status=concluida&cmid=22` no navegador, e um pré-visualizador de links ou um robô também. Use-os só para **escolher a mensagem** da página, como "Sua prova foi enviada".
    - **A página de retorno não muda nada no CRM:** não avança a etapa do candidato, não marca "fez a prova" e não envia e-mail.
    - **Para registrar que o candidato fez a prova**, e com qual nota, consulte os **resultados (4.5)**: `dataprova`, `tentativas`, `nota` e `concluido` daquele candidato.
-   - **Para atualizar o status logo depois do retorno**, a página pode disparar, no **backend**, uma consulta à 4.5 com `dataprovade` = a data de hoje.
+   - **Para atualizar o status logo depois do retorno**, a página pode disparar, no **backend**, uma consulta à 4.5 **com o CPF do candidato** (`username`, 1.10.1), que traz só ele.
      - Faça a consulta para o candidato **da sessão do CRM**, nunca para um candidato escolhido por parâmetro da URL.
+     - Sem a sessão do CRM (expirada), não consulte: mostre a mensagem genérica e deixe o acompanhamento normal (seção 5) atualizar o status.
      - Limite a frequência.
      - A nota pode levar alguns minutos para aparecer, e questões abertas podem depender de correção.
    - **A falta do retorno também não prova nada.** O candidato pode ter fechado o navegador, a tentativa pode ter sido fechada pelo Moodle ou a rede pode ter caído. O CRM nunca depende do retorno para registrar a prova: a fonte da verdade é sempre a 4.5.

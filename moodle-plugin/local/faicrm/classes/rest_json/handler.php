@@ -374,6 +374,9 @@ final class handler {
                 return [400, 'Dados inválidos: ' . $field . ' deve estar no formato AAAA-MM-DD.'];
             }
         }
+        if ($debug === 'username length') {
+            return [400, 'Dados inválidos: username deve ter no máximo 100 caracteres.'];
+        }
         if ($debug === 'dataprovade after dataprovaate') {
             return [400, 'Dados inválidos: dataprovade não pode ser posterior a dataprovaate.'];
         }

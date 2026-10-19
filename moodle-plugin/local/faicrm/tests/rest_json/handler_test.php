@@ -56,4 +56,13 @@ final class handler_test extends \basic_testcase {
         $this->assertSame([404, 'Prova não encontrada.'], handler::map(new \dml_missing_record_exception('quiz'), false));
         $this->assertSame([404, 'Candidato não encontrado.'], handler::map(new \dml_missing_record_exception('user'), false));
     }
+
+    public function test_username_longo_demais_vira_400_com_a_mensagem_em_portugues(): void {
+        $erro = new \core\exception\invalid_parameter_exception('username length');
+
+        $this->assertSame(
+            [400, 'Dados inválidos: username deve ter no máximo 100 caracteres.'],
+            handler::map($erro, false)
+        );
+    }
 }

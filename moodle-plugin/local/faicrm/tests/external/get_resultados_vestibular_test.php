@@ -458,4 +458,141 @@ final class get_resultados_vestibular_test extends \advanced_testcase {
         $this->assertCount(5, $pagina['candidatos']);
         $this->assertSame($umcandidato, $cinco, "consultas com 1 candidato: $umcandidato, com 5: $cinco");
     }
+
+    // Filtro opcional por CPF (spec 009, CA-47).
+
+    /**
+     * Chama a operação 4.5 com o filtro de username.
+     *
+     * @param string $username filtro
+     * @param string $de dataprovade
+     * @param string $ate dataprovaate
+     * @return array a página
+     */
+    private function filtrar(string $username, string $de = '', string $ate = ''): array {
+        return get_resultados_vestibular::execute($this->curso->id, 1, $de, $ate, $username);
+    }
+
+    /**
+     * Cenário do filtro: um candidato com nota e outro com correção pendente.
+     */
+    private function cenario_do_filtro(): void {
+        $prova = $this->prova_padrao();
+        $this->corrigir($this->tentar($prova, $this->candidato('10100000001'), $this->respostas(3)), 1, 150);
+        $this->tentar($prova, $this->candidato('10100000002'), $this->respostas(2));
+    }
+
+    public function test_o_parametro_username_e_opcional_e_vazio_por_padrao(): void {
+        $parametros = get_resultados_vestibular::execute_parameters()->keys;
+
+        $this->assertArrayHasKey('username', $parametros);
+        $this->assertSame(PARAM_RAW, $parametros['username']->type);
+        $this->assertSame(VALUE_DEFAULT, $parametros['username']->required);
+        $this->assertSame('', $parametros['username']->default);
+    }
+
+    public function test_filtro_devolve_so_o_candidato_com_os_mesmos_valores_da_lista(): void {
+        $this->cenario_do_filtro();
+        $completa = $this->resultados()['10100000001'];
+
+        $pagina = $this->filtrar('10100000001');
+
+        $this->assertSame(1, $pagina['total']);
+        $this->assertSame(1, $pagina['totalpaginas']);
+        $this->assertCount(1, $pagina['candidatos']);
+        $this->assertEquals($completa, $pagina['candidatos'][0]);
+        $this->assertEqualsWithDelta(150.0, $pagina['candidatos'][0]['nota_redacao'], 0.001);
+        $this->assertEqualsWithDelta(600.0, $pagina['candidatos'][0]['nota_objetivas'], 0.001);
+    }
+
+    public function test_filtro_com_candidato_pendente_devolve_os_nulos(): void {
+        $this->cenario_do_filtro();
+
+        $pagina = $this->filtrar('10100000002');
+
+        $this->assertSame(1, $pagina['total']);
+        $this->assert_notas(null, null, $pagina['candidatos'][0]);
+    }
+
+    public function test_maiusculas_e_espacos_nas_pontas_nao_atrapalham(): void {
+        $this->getDataGenerator()->enrol_user(
+            $this->getDataGenerator()->create_user(['username' => 'abc12345678'])->id,
+            $this->curso->id,
+            'student'
+        );
+
+        foreach (['ABC12345678', '  abc12345678  ', " Abc12345678	"] as $valor) {
+            $this->assertSame(1, $this->filtrar($valor)['total'], $valor);
+        }
+    }
+
+    public function test_quem_nao_e_estudante_do_curso_devolve_vazio_sem_erro(): void {
+        $gen = $this->getDataGenerator();
+        $this->cenario_do_filtro();
+        $professor = $gen->create_user(['username' => '20200000001']);
+        $gen->enrol_user($professor->id, $this->curso->id, 'editingteacher');
+        $outrocurso = $gen->create_course();
+        $gen->enrol_user($gen->create_user(['username' => '20200000002'])->id, $outrocurso->id, 'student');
+        $excluido = $this->candidato('20200000003');
+        delete_user($excluido);
+
+        foreach (['20200000001', '20200000002', '99999999999', '20200000003'] as $username) {
+            $pagina = $this->filtrar($username);
+
+            $this->assertSame(0, $pagina['total'], $username);
+            $this->assertSame(0, $pagina['totalpaginas'], $username);
+            $this->assertSame([], $pagina['candidatos'], $username);
+        }
+    }
+
+    public function test_nao_e_busca_parcial_nem_aceita_curinga(): void {
+        $this->cenario_do_filtro();
+
+        foreach (['1010000000', '101', '%', '_', '1010000000_', '10100000%', '%1', '1010000000%'] as $valor) {
+            $this->assertSame(0, $this->filtrar($valor)['total'], $valor);
+        }
+    }
+
+    public function test_combina_com_o_periodo_pelo_e(): void {
+        $this->cenario_do_filtro();
+        $hoje = date('Y-m-d');
+        $amanha = date('Y-m-d', time() + 86400);
+        $ontem = date('Y-m-d', time() - 86400);
+
+        $this->assertSame(1, $this->filtrar('10100000001', $ontem, $amanha)['total']);
+        $this->assertSame(1, $this->filtrar('10100000001', $hoje, $hoje)['total']);
+        $this->assertSame(0, $this->filtrar('10100000001', $amanha)['total']);
+        $this->assertSame(0, $this->filtrar('10100000001', '', $ontem)['total']);
+    }
+
+    public function test_vazio_ou_ausente_devolve_a_lista_completa_como_antes(): void {
+        $this->cenario_do_filtro();
+
+        $ausente = get_resultados_vestibular::execute($this->curso->id);
+        $vazio = $this->filtrar('');
+        $espacos = $this->filtrar('   ');
+
+        $this->assertSame(2, $ausente['total']);
+        $this->assertEquals($ausente, $vazio);
+        $this->assertEquals($ausente, $espacos);
+    }
+
+    public function test_username_com_mais_de_100_caracteres_e_erro_de_parametro(): void {
+        $this->expectException(\core\exception\invalid_parameter_exception::class);
+        $this->expectExceptionMessage('username length');
+
+        $this->filtrar(str_repeat('1', 101));
+    }
+
+    public function test_username_com_exatamente_100_caracteres_e_aceito(): void {
+        $this->assertSame(0, $this->filtrar(str_repeat('1', 100))['total']);
+    }
+
+    public function test_o_filtro_so_olha_contas_locais(): void {
+        global $DB;
+        $candidato = $this->candidato('30300000001');
+        $DB->set_field('user', 'mnethostid', 99, ['id' => $candidato->id]);
+
+        $this->assertSame(0, $this->filtrar('30300000001')['total']);
+    }
 }

@@ -1,5 +1,12 @@
 # Histórico de versões — local_faicrm
 
+## 1.10.1 (2026101900)
+Junta numa versão só a 1.10.0 (retorno ao CRM depois da prova) e a 1.9.2 (notas da redação e das objetivas), abaixo, e acrescenta o filtro por CPF (spec 009):
+- A operação `local_faicrm_get_resultados_vestibular` (4.5) ganha o parâmetro opcional **`username`** (o CPF): devolve só aquele candidato, com todos os campos (inclusive `nota_redacao` e `nota_objetivas`). A comparação é exata, depois de tirar espaços das pontas e passar para minúsculas; não há busca parcial nem curinga. Só contas locais e não excluídas.
+- Candidato que não existe, que não é estudante do curso ou que foi excluído: resposta normal vazia (`total` 0), sem erro. Combina com `dataprovade`/`dataprovaate` pelo "E". Vazio ou ausente: a turma inteira, como antes.
+- Mais de 100 caracteres: 400 "Dados inválidos: username deve ter no máximo 100 caracteres."
+- Atualizando a partir da 1.9.2 (produção), o passo da atualização cria o segredo do retorno (`sso_secret`), como na 1.10.0. A partir da 1.10.0 não há passo novo.
+
 ## 1.10.0 (2026101401)
 Retorno ao CRM depois da prova (spec 007):
 - Configuração nova na página do acesso automático: **"URL de retorno após a prova"** (`local_faicrm/retorno_url`; só `https://`, ou `http://` se o Moodle for http; vazia = desligado) e **"Mensagem ao concluir"** (opcional).

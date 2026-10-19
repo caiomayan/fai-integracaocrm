@@ -64,6 +64,14 @@ class get_resultados_vestibular extends external_api {
                 '',
                 NULL_NOT_ALLOWED
             ),
+            'username' => new external_value(
+                PARAM_RAW,
+                'Optional: only the candidate with this username (the CPF), compared exactly after trimming and lower-casing; ' .
+                'empty means the whole class. Up to 100 characters.',
+                VALUE_DEFAULT,
+                '',
+                NULL_NOT_ALLOWED
+            ),
         ]);
     }
 
@@ -347,19 +355,21 @@ class get_resultados_vestibular extends external_api {
      * @param int $pagina Page number (>= 1).
      * @param string $dataprovade Optional lower bound for the exam date.
      * @param string $dataprovaate Optional upper bound for the exam date.
+     * @param string $username Optional exact username filter (the CPF); empty means no filter.
      * @return array Page metadata and the list of results ordered by lastname, firstname, id.
      */
     public static function execute(
         int $courseid,
         int $pagina = 1,
         string $dataprovade = '',
-        string $dataprovaate = ''
+        string $dataprovaate = '',
+        string $username = ''
     ): array {
-        global $DB;
+        global $CFG, $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'courseid' => $courseid, 'pagina' => $pagina,
-            'dataprovade' => $dataprovade, 'dataprovaate' => $dataprovaate,
+            'dataprovade' => $dataprovade, 'dataprovaate' => $dataprovaate, 'username' => $username,
         ]);
         $courseid = $params['courseid'];
         $pagina = $params['pagina'];
@@ -372,6 +382,11 @@ class get_resultados_vestibular extends external_api {
         $to = trim($params['dataprovaate']) === '' ? null : self::parse_date($params['dataprovaate'], 'dataprovaate', true);
         if ($from !== null && $to !== null && $from > $to) {
             throw new invalid_parameter_exception('dataprovade after dataprovaate');
+        }
+
+        $username = \core_text::strtolower(trim($params['username']));
+        if (\core_text::strlen($username) > 100) {
+            throw new invalid_parameter_exception('username length');
         }
 
         $context = context_course::instance($courseid);
@@ -395,6 +410,12 @@ class get_resultados_vestibular extends external_api {
         $sqlparams = ['ctxid' => $context->id, 'roleid' => $role->id];
         $join = '';
         $where = 'u.deleted = 0';
+        if ($username !== '') {
+            // Exact match on a local account; no wildcard (the value is a bound parameter, not a LIKE pattern).
+            $where .= ' AND u.username = :username AND u.mnethostid = :mnethostid';
+            $sqlparams['username'] = $username;
+            $sqlparams['mnethostid'] = $CFG->mnet_localhost_id;
+        }
         if ($from !== null || $to !== null) {
             $join = "JOIN ($lastattempt) lp ON lp.userid = u.id";
             $sqlparams['qcourse'] = $courseid;

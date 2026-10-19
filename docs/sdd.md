@@ -21,7 +21,7 @@ Mudou de ideia no meio? Atualize a spec primeiro, depois o código.
 ## Specs
 | ID | Spec | Status |
 |---|---|---|
-| 009 | [Filtro opcional por CPF nos resultados (1.10.1)](specs/009-filtro-cpf-resultados/requirements.md) | ⏳ em andamento |
+| 009 | [Filtro opcional por CPF nos resultados (1.10.1)](specs/009-filtro-cpf-resultados/requirements.md) | ✅ concluída (1.10.1, aprovada pelo QA) |
 | 008 | [Notas da redação e das objetivas nos resultados (urgência)](specs/008-notas-redacao-objetivas/requirements.md) | ✅ concluída (1.9.2, ramo hotfix/1.9.2, aprovada pelo QA) |
 | 007 | [Retorno ao CRM depois da prova](specs/007-retorno-apos-prova/requirements.md) | ✅ concluída (1.10.0, aprovada pelo QA) |
 | 006 | [Acesso automático à prova (SSO CRM → Moodle)](specs/006-acesso-automatico-prova/requirements.md) | ✅ concluída (1.9.1, aprovada pelo QA) |
